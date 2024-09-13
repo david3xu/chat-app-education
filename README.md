@@ -2,7 +2,25 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+# command for the project: 
+npx create-next-app@latest chatApp --typescript --tailwind --eslint
+`src/`  No
+App Router? Yes
+import alias No
+
+cd chat-app
+cursor .
+
+pnpm dlx shadcn@latest init
+pnpm dlx shadcn@latest add button alert-dialog
+
+<!-- npm i react-textarea-autosize ai @ai-sdk/openai remark-gfm react-markdown -->
+pnpm add react-textarea-autosize ai @ai-sdk/openai remark-gfm react-markdown
+<!-- npm i -D @tailwindcss/typography -->
+pnpm add -D @tailwindcss/typography
+
+# set host
+"dev": "next dev -H localhost",
 
 ```bash
 npm run dev
@@ -16,21 +34,67 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# reference: https://www.youtube.com/watch?v=9yS0dR0kP-s
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# ask cursor: claude-3.5-sonnet
 
-## Learn More
+app/page.tsx:
+# please make the background dark
+# I need 2 sections. One on the left should be a 300px wide sidebar, and the one on the right will be for rendering the chat
+# clink apply button 
+# click a new chat: 
+# please add a sidebar icon that when clicked toggles the sidebar : FaBars
+# please use the lucide icons library instead: apply -> ctrl+enter
+# when the sidebar is open please put the icon on the top left of it, and when it's closed put it in the top left of the screen
+# include "use client"
+# at the botton of the chat section, we need a textarea and inside of the textarea should be a send button on the right side that has a send icon @package.json pleae use the autosize input
+# it should take up a maximum of 800px
 
-To learn more about Next.js, take a look at the following resources:
+# So we're going to need an area to render messages, please add that area between a chat title at the top and the textarea at the bottom 
+# give a color to the message of User and AI
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# awesome, let's finally use the @stream-message.ts function to make a call to the openai api and stream that message back when we submit our input 
+# in "Type your message...", let enter button work 
+# in the 'User' 'AI' area, only color the message 
+# debuging: ctrl+shift+i 
+# shift+enter to give more space
 
-## Deploy on Vercel
+# So when the message is done streaming it doesn't render in the ui
+# put the user messages on the right and the assistant on the left
+# in the top of the sidebar, there should be a create icon that allows us to create a new chat. These chats should be saved to local storage. 
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+each chat should have an id, a name, and an array of messages @stream-message.ts 
+# use current datetime as id
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# why the ai response not show in the chat area?
+# so mostly looks good on the save stuff, but when messages get streamed in and saved they disappear from the ui 
+
+# hey when I press the enter key can you submit my new message, dont send though when i also have shift held down 
+
+# when i hover over my chats in the sdebar, on the rightside it should show a trash icon that when clicked should pop up an @alert-dialog.tsx 
+
+
+
+
+# ollama connection
+OLLAMA_HOST=localhost OLLAMA_ORIGINS=* ollama serve
+# npx supabase --version
+# npx supabase init
+# npx supabase login
+# npx supabase link
+# supabase password: NMt5chkEy41b084e
+
+  local supabase: 
+  npx supabase db reset
+
+
+# ollama in ai-sdk
+pnpm add ollama-ai-provider
+
+
+
+# it seems like the display is outside of the area?
+# it seems that the output display at the same time, can you display word by word, when the llm generate words?
+
+# it seems that the model contines generate answer, no stop?
