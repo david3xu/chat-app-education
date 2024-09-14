@@ -26,12 +26,14 @@ export function MarkdownUploader() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setFiles(Array.from(e.target.files));
+      setReminder('');
     }
   };
 
   const handleFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setFiles(Array.from(e.target.files));
+      setReminder('You have selected a folder. Please review the files and click "Upload" to proceed.');
     }
   };
 
@@ -55,9 +57,7 @@ export function MarkdownUploader() {
       if (result.success) {
         alert(result.message);
         setReminder(result.reminder ?? '');
-        setFiles([]);
-        setAuthor('');
-        setSource('');
+        resetForm();
       } else {
         throw new Error(result.error || 'Unknown error');
       }
@@ -68,6 +68,15 @@ export function MarkdownUploader() {
       setUploading(false);
       abortControllerRef.current = null;
     }
+  };
+
+  const resetForm = () => {
+    setFiles([]);
+    setAuthor('');
+    setSource('');
+    setReminder('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (folderInputRef.current) folderInputRef.current.value = '';
   };
 
   return (
@@ -110,6 +119,17 @@ export function MarkdownUploader() {
         onChange={(e) => setSource(e.target.value)}
         className="block w-full p-2 border rounded"
       />
+      {reminder && <div className="text-red-500">{reminder}</div>}
+      {files.length > 0 && (
+        <div>
+          <h3>Selected Files:</h3>
+          <ul>
+            {files.map((file, index) => (
+              <li key={index}>{file.name}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <Button onClick={handleUpload} disabled={uploading}>
         {uploading ? 'Uploading...' : 'Upload'}
       </Button>
