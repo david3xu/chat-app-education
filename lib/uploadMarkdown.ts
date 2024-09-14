@@ -143,3 +143,42 @@ async function getEmbeddings(contents: string[]): Promise<number[][]> {
     throw error;
   }
 }
+
+export async function uploadFolderToSupabase(files: File[], source: string, author: string, abortSignal: AbortSignal) {
+  try {
+    let totalUploaded = 0;
+    const errors = [];
+
+    for (const file of files) {
+      if (abortSignal.aborted) {
+        throw new Error('Upload cancelled');
+      }
+
+      if (file.name.endsWith('.md')) {
+        const result = await uploadMarkdownToSupabase(file, source, author, abortSignal);
+        if (result.success) {
+          totalUploaded++;
+        } else {
+          errors.push(`Failed to upload ${file.name}: ${result.error}`);
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      console.error('Errors during folder upload:', errors);
+    }
+
+    return { 
+      success: true, 
+      message: `Uploaded ${totalUploaded} files successfully. ${errors.length} files failed.`, 
+      reminder: 'Remember to check the uploaded content in Supabase!'
+    };
+  } catch (error) {
+    console.error('Detailed error:', error);
+    if (error instanceof Error) {
+      return { success: false, error: error.message };
+    }
+    return { success: false, error: 'Unknown error occurred' };
+  }
+}
+

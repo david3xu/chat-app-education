@@ -1,24 +1,43 @@
-import React, { useState, useRef } from 'react';
-import { uploadMarkdownToSupabase } from '../lib/uploadMarkdown';
+import React, { useState, useRef, ChangeEvent } from 'react';
+import { uploadMarkdownToSupabase, uploadFolderToSupabase } from '../lib/uploadMarkdown';
 import { Button } from '@/components/ui/button';
 
+// Add this interface at the top of your file
+interface CustomInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  webkitdirectory?: string;
+  directory?: string;
+}
+
+// Create a custom input component
+const CustomFileInput = React.forwardRef<HTMLInputElement, CustomInputProps>((props, ref) => (
+  <input ref={ref} {...props} />
+));
+
 export function MarkdownUploader() {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [author, setAuthor] = useState('');
   const [source, setSource] = useState('');
   const [uploading, setUploading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [reminder, setReminder] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFile(e.target.files[0]);
+      setFiles(Array.from(e.target.files));
+    }
+  };
+
+  const handleFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setFiles(Array.from(e.target.files));
     }
   };
 
   const handleUpload = async () => {
-    if (!file) {
-      alert('Please select a file');
+    if (files.length === 0) {
+      alert('Please select files or a folder');
       return;
     }
 
@@ -26,11 +45,17 @@ export function MarkdownUploader() {
     abortControllerRef.current = new AbortController();
     
     try {
-      const result = await uploadMarkdownToSupabase(file, source || '', author || '', abortControllerRef.current.signal);
+      let result;
+      if (files.length === 1) {
+        result = await uploadMarkdownToSupabase(files[0], source || '', author || '', abortControllerRef.current.signal);
+      } else {
+        result = await uploadFolderToSupabase(files, source || '', author || '', abortControllerRef.current.signal);
+      }
+
       if (result.success) {
         alert(result.message);
         setReminder(result.reminder ?? '');
-        setFile(null);
+        setFiles([]);
         setAuthor('');
         setSource('');
       } else {
@@ -47,11 +72,29 @@ export function MarkdownUploader() {
 
   return (
     <div className="space-y-4">
+      <div className="flex space-x-2">
+        <Button onClick={() => fileInputRef.current?.click()}>
+          Choose File
+        </Button>
+        <Button onClick={() => folderInputRef.current?.click()}>
+          Choose Folder
+        </Button>
+      </div>
       <input
+        ref={fileInputRef}
         type="file"
         accept=".md"
         onChange={handleFileChange}
-        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+        className="hidden"
+      />
+      <CustomFileInput
+        ref={folderInputRef}
+        type="file"
+        webkitdirectory=""
+        directory=""
+        multiple
+        onChange={handleFolderChange}
+        className="hidden"
       />
       <input
         type="text"
