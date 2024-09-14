@@ -1,46 +1,145 @@
-import { supabase } from './supabase';
 import { createHash } from 'crypto';
+import GPT3Tokenizer from 'gpt3-tokenizer';
+import { supabase } from './supabase';
 
-async function getEmbedding(content: string) {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ollama`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: content }),
-  });
+const tokenizer = new GPT3Tokenizer({ type: 'gpt3' });
 
-  if (!response.ok) {
-    throw new Error('Failed to generate embedding');
+const CHUNK_SIZE = 200; // Target size of each chunk in tokens
+const MIN_CHUNK_SIZE_CHARS = 350; // Minimum size of each chunk in characters
+const MIN_CHUNK_LENGTH_TO_EMBED = 5; // Minimum length of chunk to embed
+const EMBEDDINGS_BATCH_SIZE = 128; // Number of embeddings to request at a time
+const MAX_NUM_CHUNKS = 4000; // Maximum number of chunks to generate from a text
+
+function getTextChunks(text: string): string[] {
+  if (!text || text.trim().length === 0) return [];
+
+  const tokens = tokenizer.encode(text);
+  const chunks: string[] = [];
+  let numChunks = 0;
+
+  while (tokens.bpe.length > 0 && numChunks < MAX_NUM_CHUNKS) {
+    const chunk = tokens.bpe.slice(0, CHUNK_SIZE);
+    let chunkText = tokenizer.decode(chunk);
+
+    if (!chunkText || chunkText.trim().length === 0) {
+      tokens.bpe = tokens.bpe.slice(chunk.length);
+      continue;
+    }
+
+    const lastPunctuation = Math.max(
+      chunkText.lastIndexOf('.'),
+      chunkText.lastIndexOf('?'),
+      chunkText.lastIndexOf('!'),
+      chunkText.lastIndexOf('\n')
+    );
+
+    if (lastPunctuation !== -1 && lastPunctuation > MIN_CHUNK_SIZE_CHARS) {
+      chunkText = chunkText.slice(0, lastPunctuation + 1);
+    }
+
+    const chunkTextToAppend = chunkText.replace(/\n/g, ' ').trim();
+
+    if (chunkTextToAppend.length > MIN_CHUNK_LENGTH_TO_EMBED) {
+      chunks.push(chunkTextToAppend);
+    }
+
+    tokens.bpe = tokens.bpe.slice(tokenizer.encode(chunkText).bpe.length);
+    numChunks++;
   }
 
-  const { embedding } = await response.json();
-  return embedding;
+  if (tokens.bpe.length > 0) {
+    const remainingText = tokenizer.decode(tokens.bpe).replace(/\n/g, ' ').trim();
+    if (remainingText.length > MIN_CHUNK_LENGTH_TO_EMBED) {
+      chunks.push(remainingText);
+    }
+  }
+
+  return chunks;
 }
 
-export async function uploadMarkdownToSupabase(file: File, source: string, author: string) {
+export async function uploadMarkdownToSupabase(file: File, source: string, author: string, abortSignal: AbortSignal) {
   try {
-    const content = await file.text();
-    console.log(`content: ${content}`);
-    const hash = createHash('md5').update(content).digest('hex');
+    const fileContent = await file.text();
+    const chunks = getTextChunks(fileContent);
+    const hash = createHash('md5').update(fileContent).digest('hex');
 
-    // Generate embedding using the API route
-    const embedding = await getEmbedding(content);
+    for (let i = 0; i < chunks.length; i += EMBEDDINGS_BATCH_SIZE) {
+      if (abortSignal.aborted) {
+        throw new Error('Upload cancelled');
+      }
 
-    const { data, error } = await supabase
-      .from('documents')
-      .insert({
-        source,
-        source_id: hash,
-        content,
-        document_id: file.name,
-        author,
-        url: file.name,
-        embedding
+      const batchChunks = chunks.slice(i, i + EMBEDDINGS_BATCH_SIZE);
+      console.log('Batch chunks:', batchChunks); // Add this line for debugging
+
+      const embeddings = await getEmbeddings(batchChunks);
+      console.log('Embeddings:', embeddings); // Add this line for debugging
+
+      for (let j = 0; j < batchChunks.length; j++) {
+        if (!embeddings[j]) {
+          console.error(`No embedding for chunk ${j}`);
+          continue;
+        }
+
+        const { error } = await supabase
+          .from('documents')
+          .insert({
+            source,
+            source_id: `${hash}-${i + j}`,
+            content: batchChunks[j],
+            document_id: `${file.name}-part${i + j + 1}`,
+            author,
+            url: file.name,
+            embedding: embeddings[j]
+          });
+
+        if (error) throw error;
+      }
+    }
+
+    return { 
+      success: true, 
+      message: 'File uploaded successfully', 
+      reminder: 'Remember to check the uploaded content in Supabase!'
+    };
+  } catch (error) {
+    console.error('Detailed error:', error);
+    if (error instanceof Error) {
+      return { success: false, error: error.message };
+    }
+    return { success: false, error: 'Unknown error occurred' };
+  }
+}
+
+async function getEmbeddings(contents: string[]): Promise<number[][]> {
+  try {
+    console.log('Contents to embed:', contents);
+
+    if (contents.length === 0) {
+      throw new Error('No content provided for embedding');
+    }
+
+    const embeddings = await Promise.all(contents.map(async (content) => {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ollama`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: content }),
       });
 
-    if (error) throw error;
-    return data;
+      if (!response.ok) {
+        throw new Error(`Failed to generate embedding for content: ${content.substring(0, 50)}...`);
+      }
+
+      const { embedding } = await response.json();
+      return embedding;
+    }));
+
+    if (embeddings.length === 0) {
+      throw new Error('No embeddings were generated');
+    }
+
+    return embeddings;
   } catch (error) {
-    console.error('Error uploading markdown:', error);
+    console.error('Error in getEmbeddings:', error);
     throw error;
   }
 }

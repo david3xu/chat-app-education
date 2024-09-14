@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { uploadMarkdownToSupabase } from '../lib/uploadMarkdown';
 import { Button } from '@/components/ui/button';
 
@@ -7,6 +7,8 @@ export function MarkdownUploader() {
   const [author, setAuthor] = useState('');
   const [source, setSource] = useState('');
   const [uploading, setUploading] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const [reminder, setReminder] = useState('');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -21,21 +23,25 @@ export function MarkdownUploader() {
     }
 
     setUploading(true);
+    abortControllerRef.current = new AbortController();
+    
     try {
-      const result = await uploadMarkdownToSupabase(file, source || '', author || '');
-      console.log('Upload result:', result);
-      if (result && typeof result === 'object' && 'error' in result) {
-        throw new Error(String((result as { error: unknown }).error));
+      const result = await uploadMarkdownToSupabase(file, source || '', author || '', abortControllerRef.current.signal);
+      if (result.success) {
+        alert(result.message);
+        setReminder(result.reminder ?? '');
+        setFile(null);
+        setAuthor('');
+        setSource('');
+      } else {
+        throw new Error(result.error || 'Unknown error');
       }
-      alert('File uploaded successfully');
-      setFile(null);
-      setAuthor('');
-      setSource('');
     } catch (error) {
       console.error('Upload failed:', error);
       alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setUploading(false);
+      abortControllerRef.current = null;
     }
   };
 
