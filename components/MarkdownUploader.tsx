@@ -18,6 +18,7 @@ export function MarkdownUploader() {
   const [files, setFiles] = useState<File[]>([]);
   const [author, setAuthor] = useState('');
   const [source, setSource] = useState('');
+  const [dominationField, setDominationField] = useState(''); // New state for domination field
   const [uploading, setUploading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [reminder, setReminder] = useState('');
@@ -45,6 +46,13 @@ export function MarkdownUploader() {
       return;
     }
 
+    if (!dominationField) {
+      alert('Please select a domination field');
+      return;
+    }
+
+    console.log('MarkdownUploader: Domination Field', dominationField); // Debug log
+
     setUploading(true);
     abortControllerRef.current = new AbortController();
     console.log('MarkdownUploader: Starting upload'); // Debug log
@@ -59,15 +67,17 @@ export function MarkdownUploader() {
           file: files[0],
           source: defaultSource,
           author: defaultAuthor,
+          dominationField, // Add dominationField to the log
         }); // Debug log
-        result = await uploadMarkdownToSupabase(files[0], defaultSource, defaultAuthor, abortControllerRef.current.signal);
+        result = await uploadMarkdownToSupabase(files[0], defaultSource, defaultAuthor, dominationField, abortControllerRef.current.signal);
       } else {
         console.log('MarkdownUploader: Uploading folder', {
           files,
           source: defaultSource,
           author: defaultAuthor,
+          dominationField, // Add dominationField to the log
         }); // Debug log
-        result = await uploadFolderToSupabase(files, defaultSource, defaultAuthor, abortControllerRef.current.signal);
+        result = await uploadFolderToSupabase(files, defaultSource, defaultAuthor, dominationField, abortControllerRef.current.signal);
       }
 
       if (result.success) {
@@ -91,6 +101,7 @@ export function MarkdownUploader() {
     setFiles([]);
     setAuthor('');
     setSource('');
+    setDominationField(''); // Reset domination field
     setReminder('');
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (folderInputRef.current) folderInputRef.current.value = '';
@@ -127,6 +138,19 @@ export function MarkdownUploader() {
         onChange={handleFolderChange}
         className="hidden"
       />
+      <div className="relative">
+        <select
+          value={dominationField}
+          onChange={(e) => setDominationField(e.target.value)}
+          className="block w-full p-2 border rounded"
+        >
+          <option value="" disabled>Select Domination Field</option>
+          <option value="Rubin Observation">Rubin Observation</option>
+          <option value="Programming Languages">Programming Languages</option>
+          <option value="Data Mining">Data Mining</option>
+          <option value="Database Systems">Database Systems</option>
+        </select>
+      </div>
       <input
         type="text"
         placeholder="Author"

@@ -36,7 +36,7 @@ function deleteTemplateFolder() {
   }
 }
 
-function getTextChunks(text: string): string[] {
+export function getTextChunks(text: string): string[] {
   console.log('Starting getTextChunks'); // Add logging
   if (!text || text.trim().length === 0) {
     console.log('No text provided or text is empty'); // Add logging
@@ -109,7 +109,7 @@ function getTextChunks(text: string): string[] {
   return chunks;
 }
 
-async function getEmbeddings(contents: string[]): Promise<number[][]> {
+export async function getEmbeddings(contents: string[]): Promise<number[][]> {
   try {
     console.log('Contents to embed:', contents);
 
@@ -143,7 +143,7 @@ async function getEmbeddings(contents: string[]): Promise<number[][]> {
   }
 }
 
-export async function uploadLargeFileToSupabase(fileContent: string, source: string, author: string, fileName: string, hash: string, abortSignal: AbortSignal) {
+export async function uploadLargeFileToSupabase(fileContent: string, source: string, author: string, fileName: string, hash: string, dominationField: string, abortSignal: AbortSignal) {
   console.log('Starting to process file content'); // Add logging
   const chunks = getTextChunks(fileContent);
   console.log(`Generated ${chunks.length} chunks`); // Add logging
@@ -175,7 +175,8 @@ export async function uploadLargeFileToSupabase(fileContent: string, source: str
           document_id: `${fileName}-part${i + j + 1}`,
           author,
           url: fileName,
-          embedding: embeddings[j]
+          embedding: embeddings[j],
+          domination_field: dominationField, // Ensure this matches the column name in Supabase
         });
 
       if (error) {

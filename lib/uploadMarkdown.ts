@@ -1,9 +1,10 @@
 import { createHash } from 'crypto';
 import { supabase } from './supabase';
+import { getTextChunks, getEmbeddings } from './uploadLargeFile';
 
 const MAX_FILE_SIZE = 100 * 1024; // 100KB
 
-export async function uploadMarkdownToSupabase(file: File, source: string, author: string, abortSignal: AbortSignal) {
+export async function uploadMarkdownToSupabase(file: File, source: string, author: string, dominationField: string, abortSignal: AbortSignal) {
   try {
     const fileContent = await file.text();
     const hash = createHash('md5').update(fileContent).digest('hex');
@@ -12,6 +13,7 @@ export async function uploadMarkdownToSupabase(file: File, source: string, autho
 
     if (file.size > MAX_FILE_SIZE) {
       console.log('uploadMarkdownToSupabase: File size exceeds max limit, using API route'); // Debug log
+      console.log('Sending to API route:', { fileContent, source, author, domination_field: dominationField, fileName: file.name });
       const response = await fetch('/api/uploadMarkdown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -19,6 +21,7 @@ export async function uploadMarkdownToSupabase(file: File, source: string, autho
           fileContent,
           source,
           author,
+          domination_field: dominationField, // Change this line
           fileName: file.name,
         }),
       });
@@ -29,19 +32,37 @@ export async function uploadMarkdownToSupabase(file: File, source: string, autho
         throw new Error(result.error || 'Unknown error');
       }
     } else {
-      console.log('uploadMarkdownToSupabase: File size within limit, uploading directly to Supabase'); // Debug log
-      const { error } = await supabase
-        .from('documents')
-        .insert({
-          source,
-          source_id: hash,
-          content: fileContent,
-          document_id: file.name,
-          author,
-          url: file.name,
-        });
+      console.log('uploadMarkdownToSupabase: File size within limit, uploading directly to Supabase');
 
-      if (error) throw error;
+      const chunks = getTextChunks(fileContent);
+      console.log(`Generated ${chunks.length} chunks`);
+
+      for (let i = 0; i < chunks.length; i++) {
+        const embedding = await getEmbeddings([chunks[i]]);
+        
+        if (!embedding[0]) {
+          console.error(`No embedding for chunk ${i}`);
+          continue;
+        }
+
+        const { error } = await supabase
+          .from('documents')
+          .insert({
+            source,
+            source_id: `${hash}-${i}`,
+            content: chunks[i],
+            document_id: `${file.name}-part${i + 1}`,
+            author,
+            domination_field: dominationField,
+            url: file.name,
+            embedding: embedding[0],
+          });
+
+        if (error) {
+          console.error('Supabase insert error:', error);
+          throw error;
+        }
+      }
     }
 
     return { 
@@ -58,7 +79,7 @@ export async function uploadMarkdownToSupabase(file: File, source: string, autho
   }
 }
 
-export async function uploadFolderToSupabase(files: File[], source: string, author: string, abortSignal: AbortSignal) {
+export async function uploadFolderToSupabase(files: File[], source: string, author: string, dominationField: string, abortSignal: AbortSignal) {
   try {
     let totalUploaded = 0;
     const errors = [];
@@ -69,7 +90,7 @@ export async function uploadFolderToSupabase(files: File[], source: string, auth
       }
 
       if (file.name.endsWith('.md')) {
-        const result = await uploadMarkdownToSupabase(file, source, author, abortSignal);
+        const result = await uploadMarkdownToSupabase(file, source, author, dominationField, abortSignal);
         if (result.success) {
           totalUploaded++;
         } else {

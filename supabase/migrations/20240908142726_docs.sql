@@ -9,7 +9,8 @@ create table if not exists documents (
     author text,
     url text,
     created_at timestamptz default now(),
-    embedding vector(1024) -- 1024 is the default dimension, change depending on dimensionality of your chosen embeddings model
+    embedding vector(1024), -- 1024 is the default dimension, change depending on dimensionality of your chosen embeddings model
+    domination_field text -- New field added
 );
 
 create index ix_documents_document_id on documents using btree ( document_id );
@@ -20,24 +21,29 @@ create index ix_documents_created_at on documents using brin ( created_at );
 
 -- alter table documents enable row level security;
 
-create or replace function match_page_sections(in_embedding vector(1024) -- 1024 is the default dimension, change depending on dimensionality of your chosen embeddings model
-                                            , in_match_count int default 3
-                                            , in_document_id text default '%%'
-                                            , in_source_id text default '%%'
-                                            , in_source text default '%%'
-                                            , in_author text default '%%'
-                                            , in_start_date timestamptz default '-infinity'
-                                            , in_end_date timestamptz default 'infinity')
-returns table (id text
-            , source text
-            , source_id text
-            , document_id text
-            , url text
-            , created_at timestamptz
-            , author text
-            , content text
-            , embedding vector(1024) -- 1024 is the default dimension, change depending on dimensionality of your chosen embeddings model
-            , similarity float)
+create or replace function match_page_sections(
+    in_embedding vector(1024), -- 1024 is the default dimension, change depending on dimensionality of your chosen embeddings model
+    in_match_count int default 3,
+    in_document_id text default '%%',
+    in_source_id text default '%%',
+    in_source text default '%%',
+    in_author text default '%%',
+    in_start_date timestamptz default '-infinity',
+    in_end_date timestamptz default 'infinity',
+    in_domination_field text default '%%' -- New parameter added
+)
+returns table (
+    id text,
+    source text,
+    source_id text,
+    document_id text,
+    url text,
+    created_at timestamptz,
+    author text,
+    content text,
+    embedding vector(1024), -- 1024 is the default dimension, change depending on dimensionality of your chosen embeddings model
+    similarity float
+)
 language plpgsql
 as $$
 #variable_conflict use_variable
@@ -55,16 +61,14 @@ select
     documents.embedding,
     (documents.embedding <#> in_embedding) * -1 as similarity
 from documents
-
 where in_start_date <= documents.created_at and 
     documents.created_at <= in_end_date and
     (documents.source_id like in_source_id or documents.source_id is null) and
     (documents.source like in_source or documents.source is null) and
     (documents.author like in_author or documents.author is null) and
-    (documents.document_id like in_document_id or documents.document_id is null)
-
+    (documents.document_id like in_document_id or documents.document_id is null) and
+    (documents.domination_field like in_domination_field or documents.domination_field is null) -- Filter by domination_field
 order by documents.embedding <#> in_embedding
-
 limit in_match_count;
 end;
 $$;
@@ -82,7 +86,8 @@ CREATE OR REPLACE FUNCTION hybrid_search(
     in_match_count INT DEFAULT 3,
     full_text_weight FLOAT DEFAULT 1.0,
     semantic_weight FLOAT DEFAULT 1.0,
-    rrf_k INT DEFAULT 50
+    rrf_k INT DEFAULT 50,
+    in_domination_field text default '%%' -- New parameter added
 )
 RETURNS TABLE (
     id TEXT,
@@ -106,6 +111,7 @@ BEGIN
             ROW_NUMBER() OVER (ORDER BY ts_rank(to_tsvector('english', documents.content), plainto_tsquery(in_query)) DESC) AS rank
         FROM documents
         WHERE to_tsvector('english', documents.content) @@ plainto_tsquery(in_query)
+        AND (documents.domination_field like in_domination_field or documents.domination_field is null) -- Filter by domination_field
         ORDER BY rank
         LIMIT rrf_k
     ),
@@ -115,6 +121,7 @@ BEGIN
             ROW_NUMBER() OVER (ORDER BY (documents.embedding <#> in_embedding) DESC) AS rank
         FROM documents
         WHERE (documents.embedding <#> in_embedding) > 0.5
+        AND (documents.domination_field like in_domination_field or documents.domination_field is null) -- Filter by domination_field
         ORDER BY rank
         LIMIT rrf_k
     )
