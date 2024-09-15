@@ -1,6 +1,7 @@
 import React, { useState, useRef, ChangeEvent } from 'react';
 import { uploadMarkdownToSupabase, uploadFolderToSupabase } from '../lib/uploadMarkdown';
 import { Button } from '@/components/ui/button';
+import { FiMenu } from 'react-icons/fi'; // Import the icon
 
 // Add this interface at the top of your file
 interface CustomInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -22,6 +23,7 @@ export function MarkdownUploader() {
   const [reminder, setReminder] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -45,13 +47,27 @@ export function MarkdownUploader() {
 
     setUploading(true);
     abortControllerRef.current = new AbortController();
-    
+    console.log('MarkdownUploader: Starting upload'); // Debug log
+
     try {
       let result;
+      const defaultSource = source || 'default source';
+      const defaultAuthor = author || 'default author';
+
       if (files.length === 1) {
-        result = await uploadMarkdownToSupabase(files[0], source || '', author || '', abortControllerRef.current.signal);
+        console.log('MarkdownUploader: Uploading single file', {
+          file: files[0],
+          source: defaultSource,
+          author: defaultAuthor,
+        }); // Debug log
+        result = await uploadMarkdownToSupabase(files[0], defaultSource, defaultAuthor, abortControllerRef.current.signal);
       } else {
-        result = await uploadFolderToSupabase(files, source || '', author || '', abortControllerRef.current.signal);
+        console.log('MarkdownUploader: Uploading folder', {
+          files,
+          source: defaultSource,
+          author: defaultAuthor,
+        }); // Debug log
+        result = await uploadFolderToSupabase(files, defaultSource, defaultAuthor, abortControllerRef.current.signal);
       }
 
       if (result.success) {
@@ -62,11 +78,12 @@ export function MarkdownUploader() {
         throw new Error(result.error || 'Unknown error');
       }
     } catch (error) {
-      console.error('Upload failed:', error);
+      console.error('MarkdownUploader: Upload failed', error); // Debug log
       alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setUploading(false);
       abortControllerRef.current = null;
+      console.log('MarkdownUploader: Upload finished'); // Debug log
     }
   };
 
@@ -81,13 +98,18 @@ export function MarkdownUploader() {
 
   return (
     <div className="space-y-4">
-      <div className="flex space-x-2">
-        <Button onClick={() => fileInputRef.current?.click()}>
-          Choose File
+      <div className="flex justify-between items-center">
+        <Button onClick={() => setIsSidebarVisible(!isSidebarVisible)} className="md:hidden p-2">
+          <FiMenu className="h-6 w-6 text-white" /> {/* Use the alternative icon */}
         </Button>
-        <Button onClick={() => folderInputRef.current?.click()}>
-          Choose Folder
-        </Button>
+        <div className="flex space-x-2">
+          <Button onClick={() => fileInputRef.current?.click()}>
+            Choose File
+          </Button>
+          <Button onClick={() => folderInputRef.current?.click()}>
+            Choose Folder
+          </Button>
+        </div>
       </div>
       <input
         ref={fileInputRef}
