@@ -1,146 +1,147 @@
-create extension vector;
+CREATE EXTENSION IF NOT EXISTS vector;
 
-create table if not exists documents (
-    id text primary key default gen_random_uuid()::text,
-    source text,
-    source_id text,
-    content text,
-    document_id text,
-    author text,
-    url text,
-    created_at timestamptz default now(),
-    embedding vector(1024), -- 1024 is the default dimension, change depending on dimensionality of your chosen embeddings model
-    domination_field text -- New field added
-);
-
-create index ix_documents_document_id on documents using btree ( document_id );
-create index ix_documents_source on documents using btree ( source );
-create index ix_documents_source_id on documents using btree ( source_id );
-create index ix_documents_author on documents using btree ( author );
-create index ix_documents_created_at on documents using brin ( created_at );
-
--- alter table documents enable row level security;
-
-create or replace function match_page_sections(
-    in_embedding vector(1024), -- 1024 is the default dimension, change depending on dimensionality of your chosen embeddings model
-    in_match_count int default 3,
-    in_document_id text default '%%',
-    in_source_id text default '%%',
-    in_source text default '%%',
-    in_author text default '%%',
-    in_start_date timestamptz default '-infinity',
-    in_end_date timestamptz default 'infinity',
-    in_domination_field text default '%%' -- New parameter added
-)
-returns table (
-    id text,
-    source text,
-    source_id text,
-    document_id text,
-    url text,
-    created_at timestamptz,
-    author text,
-    content text,
-    embedding vector(1024), -- 1024 is the default dimension, change depending on dimensionality of your chosen embeddings model
-    similarity float
-)
-language plpgsql
-as $$
-#variable_conflict use_variable
-begin
-return query
-select
-    documents.id,
-    documents.source,
-    documents.source_id,
-    documents.document_id,
-    documents.url,
-    documents.created_at,
-    documents.author,
-    documents.content,
-    documents.embedding,
-    (documents.embedding <#> in_embedding) * -1 as similarity
-from documents
-where in_start_date <= documents.created_at and 
-    documents.created_at <= in_end_date and
-    (documents.source_id like in_source_id or documents.source_id is null) and
-    (documents.source like in_source or documents.source is null) and
-    (documents.author like in_author or documents.author is null) and
-    (documents.document_id like in_document_id or documents.document_id is null) and
-    (documents.domination_field like in_domination_field or documents.domination_field is null) -- Filter by domination_field
-order by documents.embedding <#> in_embedding
-limit in_match_count;
-end;
-$$;
-
--- create an index for the full-text search
-create index ix_documents_content_fts on documents using gin (to_tsvector('english', content));
-
--- create an index for the semantic vector search
-create index ix_documents_embedding on documents using ivfflat(embedding) with (lists=100);
-
--- Function to perform hybrid search combining full-text and semantic search
-CREATE OR REPLACE FUNCTION hybrid_search(
-    in_query TEXT,
-    in_embedding VECTOR(1024), -- Adjust the dimension as needed
-    in_match_count INT DEFAULT 3,
-    full_text_weight FLOAT DEFAULT 1.0,
-    semantic_weight FLOAT DEFAULT 1.0,
-    rrf_k INT DEFAULT 50,
-    in_domination_field text default '%%' -- New parameter added
-)
-RETURNS TABLE (
-    id TEXT,
+-- Create the documents table
+CREATE TABLE IF NOT EXISTS documents (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     source TEXT,
     source_id TEXT,
-    document_id TEXT,
-    url TEXT,
-    created_at TIMESTAMPTZ,
-    author TEXT,
     content TEXT,
-    embedding VECTOR(1024), -- Adjust the dimension as needed
-    rank FLOAT
+    document_id TEXT,
+    author TEXT,
+    url TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    embedding VECTOR(1024), -- 1024 is the default dimension, change depending on dimensionality of your chosen embeddings model
+    domination_field TEXT, -- New field added
+    fts tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
+);
+
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS ix_documents_domination_field ON documents USING gin (fts);
+CREATE INDEX IF NOT EXISTS ix_documents_embedding ON documents USING ivfflat(embedding) WITH (lists=100);
+
+-- Drop both versions of the function
+DROP FUNCTION IF EXISTS hybrid_search(text, vector(1024), int, float, float, int);
+DROP FUNCTION IF EXISTS hybrid_search(text, vector(1024), int, float, float, int, text, float);
+
+-- Create the new hybrid_search function
+CREATE OR REPLACE FUNCTION hybrid_search(
+  query_text TEXT,
+  query_embedding VECTOR(1024),
+  match_count INT,
+  full_text_weight FLOAT DEFAULT 1,
+  semantic_weight FLOAT DEFAULT 1,
+  rrf_k INT DEFAULT 50
 )
-LANGUAGE plpgsql
+RETURNS SETOF documents
+LANGUAGE sql
 AS $$
-BEGIN
-    RETURN QUERY
-    WITH full_text_search AS (
-        SELECT
-            documents.id,
-            ROW_NUMBER() OVER (ORDER BY ts_rank(to_tsvector('english', documents.content), plainto_tsquery(in_query)) DESC) AS rank
-        FROM documents
-        WHERE to_tsvector('english', documents.content) @@ plainto_tsquery(in_query)
-        AND (documents.domination_field like in_domination_field or documents.domination_field is null) -- Filter by domination_field
-        ORDER BY rank
-        LIMIT rrf_k
-    ),
-    semantic_search AS (
-        SELECT
-            documents.id,
-            ROW_NUMBER() OVER (ORDER BY (documents.embedding <#> in_embedding) DESC) AS rank
-        FROM documents
-        WHERE (documents.embedding <#> in_embedding) > 0.5
-        AND (documents.domination_field like in_domination_field or documents.domination_field is null) -- Filter by domination_field
-        ORDER BY rank
-        LIMIT rrf_k
-    )
-    SELECT
-        d.id,
-        d.source,
-        d.source_id,
-        d.document_id,
-        d.url,
-        d.created_at,
-        d.author,
-        d.content,
-        d.embedding,
-        (COALESCE(fts.rank, 0) * full_text_weight + COALESCE(ss.rank, 0) * semantic_weight) AS rank
-    FROM documents d
-    LEFT JOIN full_text_search fts ON d.id = fts.id
-    LEFT JOIN semantic_search ss ON d.id = ss.id
-    WHERE fts.id IS NOT NULL OR ss.id IS NOT NULL
-    ORDER BY rank DESC
-    LIMIT in_match_count;
-END;
+WITH full_text AS (
+  SELECT 
+    id, 
+    ROW_NUMBER() OVER(ORDER BY ts_rank_cd(fts, websearch_to_tsquery(query_text)) DESC) AS rank_ix 
+  FROM 
+    documents
+  WHERE 
+    fts @@ websearch_to_tsquery(query_text)
+  ORDER BY rank_ix
+  LIMIT LEAST(match_count, 30) * 2
+),
+semantic AS (
+  SELECT 
+    id,
+    ROW_NUMBER() OVER(ORDER BY embedding <#> query_embedding) AS rank_ix
+  FROM
+    documents
+  ORDER BY rank_ix
+  LIMIT LEAST(match_count, 30) * 2
+)
+SELECT
+  documents.*
+FROM
+  full_text
+  FULL OUTER JOIN semantic
+    ON full_text.id = semantic.id 
+  JOIN documents
+    ON COALESCE(full_text.id, semantic.id) = documents.id
+ORDER BY
+  COALESCE(1.0 / (rrf_k + full_text.rank_ix), 0.0) * full_text_weight +
+  COALESCE(1.0 / (rrf_k + semantic.rank_ix), 0.0) * semantic_weight DESC
+LIMIT
+  LEAST(match_count, 30);
 $$;
+
+CREATE POLICY select_policy ON documents FOR SELECT USING (
+  (SELECT COUNT(*) FROM documents WHERE id = documents.id) > 0
+);
+
+-- Add a policy to allow inserts
+CREATE POLICY insert_policy ON documents FOR INSERT WITH CHECK (true);
+
+-- -- Create indexes if they don't exist
+-- CREATE INDEX IF NOT EXISTS ix_documents_document_id ON documents USING btree (document_id);
+-- CREATE INDEX IF NOT EXISTS ix_documents_source ON documents USING btree (source);
+-- CREATE INDEX IF NOT EXISTS ix_documents_source_id ON documents USING btree (source_id);
+-- CREATE INDEX IF NOT EXISTS ix_documents_author ON documents USING btree (author);
+-- CREATE INDEX IF NOT EXISTS ix_documents_created_at ON documents USING brin (created_at);
+-- CREATE INDEX IF NOT EXISTS ix_documents_content_fts ON documents USING gin (to_tsvector('english', content));
+-- CREATE INDEX IF NOT EXISTS ix_documents_embedding ON documents USING ivfflat(embedding) WITH (lists=100);
+
+-- -- Drop the existing hybrid_search function if it exists
+-- DROP FUNCTION IF EXISTS hybrid_search(text, vector(1024), int, float, float, int, text);
+
+-- -- Create the new hybrid_search function
+-- CREATE OR REPLACE FUNCTION hybrid_search(
+--   query_text TEXT,
+--   query_embedding VECTOR(1024),
+--   match_count INT,
+--   full_text_weight FLOAT DEFAULT 1,
+--   semantic_weight FLOAT DEFAULT 1,
+--   rrf_k INT DEFAULT 50,
+--   in_domination_field TEXT DEFAULT '%%',
+--   -- in_min_similarity FLOAT DEFAULT 0.001, -- Lower this value
+--   in_max_tokens INT DEFAULT 5000
+-- )
+-- RETURNS SETOF documents
+-- LANGUAGE sql
+-- AS $$
+-- WITH full_text AS (
+--   SELECT 
+--     id, 
+--     ROW_NUMBER() OVER(ORDER BY ts_rank_cd(to_tsvector('english', content), websearch_to_tsquery(query_text)) DESC) AS rank_ix 
+--   FROM 
+--     documents
+--   WHERE 
+--     to_tsvector('english', content) @@ websearch_to_tsquery(query_text)
+--     AND (domination_field LIKE in_domination_field OR domination_field IS NULL)
+--   ORDER BY rank_ix
+--   LIMIT LEAST(match_count, 30) * 2
+-- ),
+-- semantic AS (
+--   SELECT 
+--     id,
+--     ROW_NUMBER() OVER(ORDER BY embedding <#> query_embedding) AS rank_ix
+--   FROM 
+--     documents
+--   WHERE 
+--     (domination_field LIKE in_domination_field OR domination_field IS NULL)
+--     AND (embedding <#> query_embedding) > in_min_similarity
+--   ORDER BY rank_ix
+--   LIMIT LEAST(match_count, 30) * 2
+-- )
+-- SELECT
+--   documents.*
+-- FROM
+--   full_text
+--   FULL OUTER JOIN semantic
+--     ON full_text.id = semantic.id 
+--   JOIN documents
+--     ON COALESCE(full_text.id, semantic.id) = documents.id
+-- WHERE
+--   LENGTH(documents.content) <= in_max_tokens
+-- ORDER BY
+--   COALESCE(1.0 / (rrf_k + full_text.rank_ix), 0.0) * full_text_weight + 
+--   COALESCE(1.0 / (rrf_k + semantic.rank_ix), 0.0) * semantic_weight DESC
+-- LIMIT
+--   LEAST(match_count, 30);
+-- $$;

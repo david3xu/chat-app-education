@@ -98,3 +98,13 @@ pnpm add ollama-ai-provider
 # it seems that the output display at the same time, can you display word by word, when the llm generate words?
 
 # it seems that the model contines generate answer, no stop?
+
+# Do you have any idea for chat history ?
+
+# @app @actions @components @lib @supabase  can you give exact step for the above chat history implementation?
+
+# add "Select Domination Field" in the "Chat Area"
+
+# can you add one processing shadow icon when generating the answer ? 
+
+# move the loading icon to the left 

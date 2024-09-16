@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MarkdownUploader } from "@/components/MarkdownUploader";
 
 const ChatArea: React.FC = () => {
-  const { currentChat, streamingMessage } = useChat();
+  const { currentChat, streamingMessage, isLoading } = useChat();
   const [showUploader, setShowUploader] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -45,6 +45,12 @@ const ChatArea: React.FC = () => {
             </div>
           </div>
         ))}
+        {isLoading && (
+          <div className="flex justify-start items-center mb-2">
+            <div className="loader mr-2"></div>
+            <div className="text-white">Generating response...</div>
+          </div>
+        )}
         {streamingMessage && (
           <div className="mb-2 flex justify-start">
             <div className="p-2 rounded-lg bg-green-600 text-white max-w-[70%] break-words">

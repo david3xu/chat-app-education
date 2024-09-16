@@ -10,6 +10,7 @@ const MIN_CHUNK_SIZE_CHARS = 350; // Minimum size of each chunk in characters
 const MIN_CHUNK_LENGTH_TO_EMBED = 5; // Minimum length of chunk to embed
 const EMBEDDINGS_BATCH_SIZE = 128; // Number of embeddings to request at a time
 const MAX_NUM_CHUNKS = 4000; // Maximum number of chunks to generate from a text
+const INITIAL_TEXT_PARTITION_SIZE = 4000; // Maximum length for initial text partitioning
 
 const TEMPLATE_FOLDER = path.join(process.cwd(), 'docs');
 
@@ -43,10 +44,9 @@ export function getTextChunks(text: string): string[] {
     return [];
   }
 
-  const MAX_TEXT_LENGTH = 4000; // Define a maximum length for each text part
   const textParts = [];
-  for (let i = 0; i < text.length; i += MAX_TEXT_LENGTH) {
-    textParts.push(text.slice(i, i + MAX_TEXT_LENGTH));
+  for (let i = 0; i < text.length; i += INITIAL_TEXT_PARTITION_SIZE) {
+    textParts.push(text.slice(i, i + INITIAL_TEXT_PARTITION_SIZE));
   }
 
   const chunks: string[] = [];
@@ -109,6 +109,27 @@ export function getTextChunks(text: string): string[] {
   return chunks;
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, retries: number = 5, initialTimeout: number = 5000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`Attempt ${i + 1}: Fetching ${url}`);
+      const controller = new AbortController();
+      const timeout = initialTimeout * Math.pow(2, i); // Exponential backoff
+      const id = setTimeout(() => controller.abort(), timeout);
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(id);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return response;
+    } catch (error) {
+      console.error(`Attempt ${i + 1} failed:`, error);
+      if (i === retries - 1) throw error;
+      console.warn(`Fetch attempt ${i + 1} failed. Retrying in ${initialTimeout * Math.pow(2, i) / 1000} seconds...`);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retrying
+    }
+  }
+  throw new Error('All fetch attempts failed');
+}
+
 export async function getEmbeddings(contents: string[]): Promise<number[][]> {
   try {
     console.log('Contents to embed:', contents);
@@ -117,20 +138,24 @@ export async function getEmbeddings(contents: string[]): Promise<number[][]> {
       throw new Error('No content provided for embedding');
     }
 
-    const embeddings = await Promise.all(contents.map(async (content) => {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ollama`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: content }),
-      });
+    const embeddings: number[][] = [];
+    const batchSize = 10; // Process 10 chunks at a time
 
-      if (!response.ok) {
-        throw new Error(`Failed to generate embedding for content: ${content.substring(0, 50)}...`);
-      }
+    for (let i = 0; i < contents.length; i += batchSize) {
+      const batch = contents.slice(i, i + batchSize);
+      const batchEmbeddings = await Promise.all(batch.map(async (content) => {
+        const response = await fetchWithRetry(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ollama`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: content }),
+        });
 
-      const { embedding } = await response.json();
-      return embedding;
-    }));
+        const { embedding } = await response.json();
+        return embedding;
+      }));
+
+      embeddings.push(...batchEmbeddings);
+    }
 
     if (embeddings.length === 0) {
       throw new Error('No embeddings were generated');

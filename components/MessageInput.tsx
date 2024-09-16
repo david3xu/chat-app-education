@@ -7,7 +7,7 @@ import { useChat } from '@/components/ChatContext';
 
 const MessageInput: React.FC = () => {
   const [message, setMessage] = useState("");
-  const { addMessageToCurrentChat, setStreamingMessage, updateCurrentChat } = useChat();
+  const { addMessageToCurrentChat, setStreamingMessage, updateCurrentChat, isLoading, setIsLoading } = useChat();
 
   const handleSend = async () => {
     if (!message.trim()) return;
@@ -21,6 +21,7 @@ const MessageInput: React.FC = () => {
     const userMessage = message;
     setMessage("");
     setStreamingMessage('');
+    setIsLoading(true); // Set loading state to true
 
     try {
       let fullResponse = '';
@@ -60,9 +61,11 @@ const MessageInput: React.FC = () => {
         };
       });
       setStreamingMessage('');
+      setIsLoading(false); // Set loading state to false
 
     } catch (error) {
       console.error('Error:', error);
+      setIsLoading(false); // Set loading state to false
     }
   };
 
@@ -85,7 +88,7 @@ const MessageInput: React.FC = () => {
       <button
         onClick={handleSend}
         className="absolute right-4 bottom-3 text-white p-2 rounded-full bg-blue-500 hover:bg-blue-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-        disabled={!message.trim()}
+        disabled={!message.trim() || isLoading} // Disable button when loading
       >
         <Send size={20} />
       </button>

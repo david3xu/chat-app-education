@@ -13,6 +13,8 @@ interface ChatContextType {
   streamingMessage: string;
   setStreamingMessage: (message: string) => void;
   updateCurrentChat: (updater: (prevChat: Chat | null) => Chat | null) => void;
+  isLoading: boolean;
+  setIsLoading: (isLoading: boolean) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -21,6 +23,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChat, setCurrentChat] = useState<Chat | null>(null);
   const [streamingMessage, setStreamingMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const savedChats = localStorage.getItem('chats');
@@ -83,7 +86,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addMessageToCurrentChat,
       streamingMessage,
       setStreamingMessage,
-      updateCurrentChat
+      updateCurrentChat,
+      isLoading,
+      setIsLoading
     }}>
       {children}
     </ChatContext.Provider>
