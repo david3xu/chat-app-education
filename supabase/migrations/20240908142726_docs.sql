@@ -1,5 +1,33 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- Drop the existing chat_history table if it exists
+DROP TABLE IF EXISTS chat_history;
+
+-- Create users table if it doesn't exist
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    -- Add other necessary columns for the users table
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Insert a default user if the table is empty
+INSERT INTO users (id)
+SELECT '00000000-0000-0000-0000-000000000000'
+WHERE NOT EXISTS (SELECT 1 FROM users);
+
+-- Then create the chat_history table
+CREATE TABLE IF NOT EXISTS chat_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) DEFAULT '00000000-0000-0000-0000-000000000000',
+    user_input TEXT,
+    assistant_response TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Add any necessary indexes
+CREATE INDEX IF NOT EXISTS ix_chat_history_user_id ON chat_history(user_id);
+CREATE INDEX IF NOT EXISTS ix_chat_history_created_at ON chat_history(created_at);
+
 -- Create the documents table
 CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,

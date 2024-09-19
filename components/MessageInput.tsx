@@ -4,32 +4,39 @@ import React, { useState } from 'react';
 import { Send } from 'lucide-react';
 import TextareaAutosize from "react-textarea-autosize";
 import { useChat } from '@/components/ChatContext';
+import { ChatMessage } from '@/types/chat';
 
 const MessageInput: React.FC = () => {
   const [message, setMessage] = useState("");
-  const { addMessageToCurrentChat, setStreamingMessage, updateCurrentChat, isLoading, setIsLoading } = useChat();
+  const [error, setError] = useState<string | null>(null);
+  const { addMessageToCurrentChat, setStreamingMessage, updateCurrentChat, isLoading, setIsLoading, currentChat, userId } = useChat();
 
   const handleSend = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() || !currentChat || isLoading) return;
 
-    addMessageToCurrentChat({
+    const userMessage: ChatMessage = {
       id: Date.now(),
-      role: "user",
+      role: "user" as const,
       content: message,
-    });
+    };
 
-    const userMessage = message;
+    console.log("Adding user message:", userMessage);
+    addMessageToCurrentChat(userMessage);
     setMessage("");
     setStreamingMessage('');
-    setIsLoading(true); // Set loading state to true
+    setIsLoading(true);
 
     try {
       let fullResponse = '';
       const response = await fetch('/api/answer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ message: userMessage.content, userId }),
       });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error('Response body is null');
@@ -39,33 +46,35 @@ const MessageInput: React.FC = () => {
         if (done) break;
         
         const text = new TextDecoder().decode(value);
+        console.log("Received text:", text); // Add this line
         const lines = text.split('\n\n');
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const { token } = JSON.parse(line.slice(6));
-            fullResponse += token;
-            setStreamingMessage(fullResponse);
+            try {
+              const { token } = JSON.parse(line.slice(6));
+              fullResponse += token;
+              setStreamingMessage(fullResponse);
+            } catch (parseError) {
+              console.error('Error parsing JSON:', parseError);
+              console.error('Problematic line:', line);
+            }
           }
         }
       }
 
-      // After streaming is complete, update the chat messages
-      updateCurrentChat(prevChat => {
-        if (!prevChat) return null;
-        return {
-          ...prevChat,
-          messages: [
-            ...prevChat.messages,
-            { role: 'assistant', content: fullResponse, id: Date.now() }
-          ]
-        };
-      });
-      setStreamingMessage('');
-      setIsLoading(false); // Set loading state to false
+      const assistantMessage: ChatMessage = {
+        id: Date.now(),
+        role: 'assistant' as const,
+        content: fullResponse
+      };
+      addMessageToCurrentChat(assistantMessage);
 
     } catch (error) {
       console.error('Error:', error);
-      setIsLoading(false); // Set loading state to false
+      setError('An error occurred while processing your request.');
+    } finally {
+      setStreamingMessage('');
+      setIsLoading(false);
     }
   };
 

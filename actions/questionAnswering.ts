@@ -1,42 +1,23 @@
 import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import { codeBlock, oneLine } from 'common-tags'
+import { storeChatMessage } from './chatHistory';
 
 const OLLAMA_SERVER_URL = 'http://localhost:11434'
 
-// const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-//   db: {
-//     schema: 'public',
-//   },
-//   global: {
-//     headers: { 
-//       'x-my-custom-header': 'my-app-name',
-//       requestTimeout: '30000' // Convert the value to a string
-//     },
-//   },
-//   auth: {
-//     persistSession: false,
-//   },
-//   realtime: {
-//     params: {
-//       eventsPerSecond: 10,
-//     },
-//   },
-// });
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || ''
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    db: {
-      schema: 'public',
-    },
-  }
-)
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables')
+}
+
+export const supabase = createClient(supabaseUrl, supabaseKey)
 
 const openai = new OpenAI({
   baseURL: `${OLLAMA_SERVER_URL}/v1`,
-  apiKey: 'ollama'
+  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
+  dangerouslyAllowBrowser: true
 })
 
 async function getEmbedding(query: string) {
@@ -54,7 +35,7 @@ async function getEmbedding(query: string) {
   return embedding;
 }
 
-export async function answerQuestion(query: string, onToken: (token: string) => void) {
+export async function answerQuestion(query: string, onToken: (token: string) => void, userId: string) {
   try {
     const sanitizedQuery = query.trim().replace(/[\r\n]+/g, ' ').substring(0, 500); // Truncate to 500 characters
     console.log(`sanitized query: ${sanitizedQuery}`);
@@ -150,6 +131,9 @@ export async function answerQuestion(query: string, onToken: (token: string) => 
         break;
       }
     }
+
+    // Update this part
+    await storeChatMessage(userId, query, fullResponse);
   } catch (error) {
     console.error('Error in answerQuestion:', error);
     await onToken('Sorry, I encountered an error while processing your question.');

@@ -103,8 +103,26 @@ pnpm add ollama-ai-provider
 
 # @app @actions @components @lib @supabase  can you give exact step for the above chat history implementation?
 
+# after the implementation of the history chat, the conversation between user and assistant appeared and removed from chat area.  @ChatContext.tsx @route.ts @questionAnswering.ts @ChatArea.tsx @MessageInput.tsx  answer again using the docs.
+
+# it continues generate the requests?
+
+# you remove my user input in the chat area again? 
+
+# on each conversation, the project stored three rows data, what is the storing process and related data? search all the project
+
+it seems that user content was not add to the current message? @MessageInput.tsx @ChatArea.tsx @ChatContext.tsx 
+#solution: Finally, let's modify the ChatContext.tsx to ensure it's correctly updating the state:
+
 # add "Select Domination Field" in the "Chat Area"
 
 # can you add one processing shadow icon when generating the answer ? 
 
 # move the loading icon to the left 
+
+# add classification field choice when ask AI
+
+# add multimodel choice, ask image questions
+
+# interact with personal notes 
+

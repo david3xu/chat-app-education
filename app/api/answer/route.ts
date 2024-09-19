@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server';
 import { answerQuestion } from '@/actions/questionAnswering';
+import { storeChatMessage } from '@/actions/chatHistory';
 
 export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
-  const { message } = await req.json();
+  const { message, userId } = await req.json();
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -19,7 +20,13 @@ export async function POST(req: NextRequest) {
       };
 
       try {
-        await answerQuestion(message, sendToken);
+        let assistantMessage = '';
+        await answerQuestion(message, async (token) => {
+          assistantMessage += token;
+          await sendToken(token);
+        }, userId);
+        // Remove this line as it's now handled in answerQuestion
+        // await storeChatMessage(userId, assistantMessage, 'assistant');
       } catch (error) {
         console.error('Error in route handler:', error);
         await sendToken('An error occurred while processing your request.');
