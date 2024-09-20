@@ -5,48 +5,89 @@ import { useChat } from '@/components/ChatContext';
 import { Button } from "@/components/ui/button";
 import { MarkdownUploader } from "@/components/MarkdownUploader";
 import { fetchChatHistory } from '@/actions/chatHistory';
+import { answerQuestion } from '@/actions/questionAnswering';
+import { v4 as uuidv4 } from 'uuid';
+import { ChatMessage } from '@/types/chat';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import ReactMarkdown from 'react-markdown';
 
 const ChatArea: React.FC = () => {
-  const { currentChat, streamingMessage, isLoading, updateCurrentChat, isLoadingHistory, error } = useChat();
+  const { 
+    currentChat, 
+    streamingMessage, 
+    isLoading, 
+    updateCurrentChat, 
+    isLoadingHistory, 
+    error,
+    setIsLoading,
+    setError,
+    setStreamingMessage,
+    userId,
+    createNewChat, // Keep this,
+    dominationField,
+  } = useChat();
   const [showUploader, setShowUploader] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    console.log("Current chat:", currentChat);
-    console.log("Current chat messages:", currentChat?.messages);
-    console.log("Streaming message:", streamingMessage);
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [currentChat?.messages, streamingMessage]);
+  }, [currentChat, currentChat?.messages, streamingMessage]);
 
   useEffect(() => {
     if (currentChat && !currentChat.historyLoaded) {
-      console.log("Fetching chat history for chat:", currentChat.id);
       fetchChatHistory(currentChat.id).then(history => {
-        console.log("Fetched history:", history);
-        updateCurrentChat(prevChat => {
-          if (!prevChat) return null;
-          const updatedChat = {
-            ...prevChat,
-            messages: history.map(msg => ({
-              ...msg,
-              role: msg.role as "user" | "assistant"
-            })),
-            historyLoaded: true
-          };
-          console.log("Updated chat after history fetch:", updatedChat);
-          return updatedChat;
-        });
+        updateCurrentChat(prevChat => ({
+          ...prevChat!,
+          messages: history,
+          historyLoaded: true
+        }));
       });
     }
   }, [currentChat, updateCurrentChat]);
 
-  // Add this new useEffect to log messages whenever they change
-  useEffect(() => {
-    console.log("Messages changed:", currentChat?.messages);
-  }, [currentChat?.messages]);
+  const addMessageToCurrentChat = (message: ChatMessage) => {
+    updateCurrentChat(prevChat => {
+      if (!prevChat) return null;
+      return {
+        ...prevChat,
+        messages: [...prevChat.messages, message]
+      };
+    });
+  };
+
+  const handleSendMessage = async (message: string) => {
+    if (!dominationField) return;
+    if (!currentChat) return;
+
+    const userMessage: ChatMessage = {
+      id: uuidv4(),
+      role: 'user',
+      content: message,
+    };
+
+    addMessageToCurrentChat(userMessage);
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await answerQuestion(
+        message,
+        (token) => setStreamingMessage(prev => prev + token),
+        userId,
+        currentChat.messages,
+        dominationField
+      );
+    } catch (error) {
+      console.error('Error in handleSendMessage:', error);
+      setError('An error occurred while processing your message.');
+    } finally {
+      setIsLoading(false);
+      setStreamingMessage('');
+    }
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -70,20 +111,17 @@ const ChatArea: React.FC = () => {
           <div className="text-white">Loading chat history...</div>
         ) : (
           <>
-            {currentChat?.messages.map((msg) => {
-              console.log("Rendering message:", msg);
-              return (
-                <div key={msg.id} className={`mb-2 flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`p-2 rounded-lg ${
-                      msg.role === "user" ? "bg-blue-600" : "bg-green-600"
-                    } text-white max-w-[70%] break-words`}
-                  >
-                    {msg.content}
-                  </div>
+            {currentChat?.messages.map((msg) => (
+              <div key={msg.id} className={`mb-2 flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`p-2 rounded-lg ${
+                    msg.role === "user" ? "bg-blue-600" : "bg-green-600"
+                  } text-white max-w-[70%] break-words`}
+                >
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
                 </div>
-              );
-            })}
+              </div>
+            ))}
             {isLoading && (
               <div className="flex justify-start items-center mb-2">
                 <div className="loader mr-2"></div>
@@ -93,7 +131,7 @@ const ChatArea: React.FC = () => {
             {streamingMessage && (
               <div className="mb-2 flex justify-start">
                 <div className="p-2 rounded-lg bg-green-600 text-white max-w-[70%] break-words">
-                  {streamingMessage}
+                  <ReactMarkdown>{streamingMessage}</ReactMarkdown>
                 </div>
               </div>
             )}

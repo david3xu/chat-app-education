@@ -4,10 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { useChat } from '@/components/ChatContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { dominationFieldsData } from '../lib/data/domFields';
 
 const Sidebar: React.FC = () => {
   const [sidebarVisible, setSidebarVisible] = useState(true);
-  const { chats, currentChat, setCurrentChat, createNewChat, deleteChat } = useChat();
+  const { chats, currentChat, setCurrentChat, createNewChat, deleteChat, dominationField, setDominationField } = useChat();
 
   useEffect(() => {
     const handleResize = () => {
@@ -24,6 +26,18 @@ const Sidebar: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    if (!dominationField) {
+      setDominationField('Science');
+    }
+  }, [dominationField, setDominationField]);
+
+  useEffect(() => {
+    if (!dominationField && dominationFieldsData.length > 0) {
+      setDominationField(dominationFieldsData[0].value);
+    }
+  }, [dominationField, setDominationField]);
+
   if (!sidebarVisible) return null;
 
   return (
@@ -34,13 +48,30 @@ const Sidebar: React.FC = () => {
       >
         <X size={24} />
       </button>
-      <div className="flex justify-between items-center mb-4 mt-12">
-        <h2 className="text-white text-xl font-bold">Chats</h2>
+      <div className="flex flex-col items-center mb-4 mt-12">
+        <h2 className="text-white text-xl font-bold mb-2">Chats</h2>
+        <Select 
+          onValueChange={setDominationField} 
+          value={dominationField} 
+          defaultValue={dominationFieldsData[0]?.value}
+          required
+        >
+          <SelectTrigger className="w-full mb-2">
+            <SelectValue placeholder="Select field" />
+          </SelectTrigger>
+          <SelectContent>
+            {dominationFieldsData.map((field) => (
+              <SelectItem key={field.value} value={field.value}>
+                {field.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <button
           onClick={createNewChat}
-          className="text-white bg-blue-500 p-2 rounded-full hover:bg-blue-600"
+          className="text-white bg-blue-500 p-2 rounded-full hover:bg-blue-600 w-full"
         >
-          <Plus size={20} />
+          <Plus size={20} className="inline mr-2" /> New Chat
         </button>
       </div>
       

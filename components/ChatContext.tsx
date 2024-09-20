@@ -3,6 +3,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { ChatMessage, Chat } from "@/types/chat";
 import { fetchChatHistory, storeChatMessage } from '@/actions/chatHistory';
+import { answerQuestion } from '@/actions/questionAnswering';
 import { v4 as uuidv4 } from 'uuid';
 
 interface ChatContextType {
@@ -13,7 +14,7 @@ interface ChatContextType {
   deleteChat: (chatId: string) => void;
   addMessageToCurrentChat: (message: ChatMessage) => void;
   streamingMessage: string;
-  setStreamingMessage: (message: string) => void;
+  setStreamingMessage: React.Dispatch<React.SetStateAction<string>>;
   updateCurrentChat: (updater: (prevChat: Chat | null) => Chat | null) => void;
   isLoading: boolean;
   setIsLoading: (isLoading: boolean) => void;
@@ -21,6 +22,10 @@ interface ChatContextType {
   error: string | null;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   userId: string;
+  handleSendMessage: (message: string) => Promise<void>;
+  dominationField: string;
+  setDominationField: (field: string) => void;
+  // dominationFields: string[]; // Add this line
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -32,6 +37,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dominationField, setDominationField] = useState<string>('Science');
 
   const [userId, setUserId] = useState<string>('');
 
@@ -78,10 +84,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const history = await fetchChatHistory(currentChat.id);
           setCurrentChat(prevChat => ({
             ...prevChat!,
-            messages: history.map(msg => ({
-              ...msg,
-              role: msg.role as "user" | "assistant"
-            })),
+            messages: history,
+            dominationField: currentChat.dominationField,
             historyLoaded: true
           }));
         } catch (error) {
@@ -96,16 +100,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentChat]);
 
   const createNewChat = useCallback(() => {
+    if (!dominationField) return;
     const newChat: Chat = {
       id: uuidv4(),
       name: `New Chat ${chats.length + 1}`,
       messages: [],
       userId: userId,
-      historyLoaded: false
+      historyLoaded: false,
+      dominationField: dominationField || 'Science'
     };
     setChats(prevChats => [...prevChats, newChat]);
     setCurrentChat(newChat);
-  }, [chats.length]);
+  }, [chats.length, userId, dominationField]); // Add userId and dominationField to the dependency array
 
   const deleteChat = (chatId: string) => {
     setChats(chats.filter(chat => chat.id !== chatId));
@@ -114,20 +120,73 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const addMessageToCurrentChat = (message: ChatMessage) => {
+  const addMessageToCurrentChat = useCallback((message: ChatMessage) => {
     setCurrentChat(prevChat => {
       if (!prevChat) {
         console.error("No current chat to add message to");
         return null;
       }
-      console.log("Before adding message:", prevChat.messages);
       const updatedMessages = [...prevChat.messages, message];
-      console.log("After adding message:", updatedMessages);
       return {
         ...prevChat,
         messages: updatedMessages
       };
     });
+  
+    setChats(prevChats => {
+      return prevChats.map(chat => 
+        chat.id === currentChat?.id 
+          ? { ...chat, messages: [...chat.messages, message] }
+          : chat
+      );
+    });
+  }, [currentChat]);
+
+  const handleSendMessage = async (message: string) => {
+    if (!currentChat || !dominationField) return;
+    if (!currentChat) {
+      console.error("No current chat available");
+      return;
+    }
+
+    const userMessage: ChatMessage = {
+      id: uuidv4(),
+      role: 'user',
+      content: message,
+    };
+
+    addMessageToCurrentChat(userMessage);
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      let fullResponse = '';
+      await answerQuestion(
+        message,
+        (token) => {
+          setStreamingMessage((prev) => prev + token);
+          fullResponse += token;
+        },
+        userId,
+        currentChat.messages,
+        dominationField
+      );
+      
+      const assistantMessage: ChatMessage = {
+        id: uuidv4(),
+        role: 'assistant',
+        content: fullResponse
+      };
+      
+      addMessageToCurrentChat(assistantMessage);
+      // console.log("After adding assistant message:", currentChat);
+    } catch (error) {
+      console.error('Error in handleSendMessage:', error);
+      setError('An error occurred while processing your message.');
+    } finally {
+      setIsLoading(false);
+      setStreamingMessage('');
+    }
   };
 
   return (
@@ -146,7 +205,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoadingHistory,
       error,
       setError,
-      userId
+      userId,
+      handleSendMessage,
+      dominationField,
+      setDominationField,
+      // dominationFields // Add this line
     }}>
       {children}
     </ChatContext.Provider>

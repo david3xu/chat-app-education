@@ -9,18 +9,17 @@ import { ChatMessage } from '@/types/chat';
 const MessageInput: React.FC = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const { addMessageToCurrentChat, setStreamingMessage, updateCurrentChat, isLoading, setIsLoading, currentChat, userId } = useChat();
+  const { addMessageToCurrentChat, setStreamingMessage, updateCurrentChat, isLoading, setIsLoading, currentChat, userId, dominationField } = useChat();
 
   const handleSend = async () => {
-    if (!message.trim() || !currentChat || isLoading) return;
+    if (!message.trim() || !currentChat || isLoading || !dominationField) return;
 
     const userMessage: ChatMessage = {
-      id: Date.now(),
+      id: Date.now().toString(),
       role: "user" as const,
       content: message,
     };
 
-    console.log("Adding user message:", userMessage);
     addMessageToCurrentChat(userMessage);
     setMessage("");
     setStreamingMessage('');
@@ -31,39 +30,50 @@ const MessageInput: React.FC = () => {
       const response = await fetch('/api/answer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage.content, userId }),
+        body: JSON.stringify({ 
+          message: userMessage.content, 
+          userId,
+          dominationField // Add this line
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Network response was not ok');
+        throw new Error(`Server responded with ${response.status}: ${await response.text()}`);
       }
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error('Response body is null');
       
+      let partialData = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
         const text = new TextDecoder().decode(value);
-        console.log("Received text:", text); // Add this line
-        const lines = text.split('\n\n');
-        for (const line of lines) {
+        partialData += text;
+        
+        let startIndex = 0;
+        while (true) {
+          const endIndex = partialData.indexOf('\n', startIndex);
+          if (endIndex === -1) break;
+          
+          const line = partialData.slice(startIndex, endIndex).trim();
           if (line.startsWith('data: ')) {
             try {
               const { token } = JSON.parse(line.slice(6));
               fullResponse += token;
               setStreamingMessage(fullResponse);
             } catch (parseError) {
-              console.error('Error parsing JSON:', parseError);
-              console.error('Problematic line:', line);
+              // Ignore parse errors for incomplete JSON
             }
           }
+          startIndex = endIndex + 1;
         }
+        partialData = partialData.slice(startIndex);
       }
 
       const assistantMessage: ChatMessage = {
-        id: Date.now(),
+        id: Date.now().toString(),
         role: 'assistant' as const,
         content: fullResponse
       };

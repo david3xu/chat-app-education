@@ -3,9 +3,9 @@ import { uploadLargeFileToSupabase } from '@/lib/uploadLargeFile';
 import { createHash } from 'crypto';
 
 export async function POST(req: Request) {
-  console.log('API Route: Received request'); // Debug log
+  // console.log('API Route: Received request'); // Debug log
   const { fileContent, source, author, fileName, domination_field: dominationField } = await req.json();
-  console.log('API Route: Request body', { fileContent, source, author, fileName, dominationField }); // Debug log
+  // console.log('API Route: Request body', { fileContent, source, author, fileName, dominationField }); // Debug log
 
   if (!fileContent || !source || !author || !fileName || !dominationField) {
     console.error('API Route: Missing required fields'); // Debug log
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   }
 
   const hash = createHash('md5').update(fileContent).digest('hex');
-  console.log(`API Route: Generated hash ${hash}`); // Debug log
+  // console.log(`API Route: Generated hash ${hash}`); // Debug log
 
   try {
     console.log('API Route: Starting file upload'); // Debug log

@@ -115,14 +115,27 @@ it seems that user content was not add to the current message? @MessageInput.tsx
 #solution: Finally, let's modify the ChatContext.tsx to ensure it's correctly updating the state:
 
 # add "Select Domination Field" in the "Chat Area"
+## when you clink + button to add a new chat or automatically generate a new chat, add another option for domination_filed choice @ChatArea.tsx @20240908142726_docs.sql 
 
 # can you add one processing shadow icon when generating the answer ? 
 
 # move the loading icon to the left 
 
 # add classification field choice when ask AI
+# add field choice on the sidebar area
+# Science means that search all the document, 
+# relax means only chat casually, no document search, 
 
 # add multimodel choice, ask image questions
 
+# structure output
+how to strucuture assistant answer?  @chat.ts   @QuestionAnswering.tsx 
+
 # interact with personal notes 
+
+# chat history not show in the chatarea 
+when I click back, why my new chat 1, new chat 2..., all the chats are empty in the chat area? @ChatContext.tsx @questionAnswering.ts @ChatArea.tsx @prompts.ts @route.ts @Sidebar.tsx @chat.ts @chatHistory.ts 
+
+Do you mean use chat_id rather than user_id, but currently I don't have a chat_id, 
+Do i need to create chat_id? @chatHistory.ts @Sidebar.tsx @ChatContext.tsx @ChatArea.tsx @questionAnswering.ts @prompts.ts @route.ts @20240908142726_docs.sql @QuestionAnswering.tsx  if you need chat_id, can you please create a sepate file for the implementation?
 

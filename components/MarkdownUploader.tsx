@@ -2,6 +2,7 @@ import React, { useState, useRef, ChangeEvent } from 'react';
 import { uploadMarkdownToSupabase, uploadFolderToSupabase } from '../lib/uploadMarkdown';
 import { Button } from '@/components/ui/button';
 import { FiMenu } from 'react-icons/fi'; // Import the icon
+import { dominationFieldsData } from '../lib/data/domFields';
 
 // Add this interface at the top of your file
 interface CustomInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -145,10 +146,11 @@ export function MarkdownUploader() {
           className="block w-full p-2 border rounded"
         >
           <option value="" disabled>Select Domination Field</option>
-          <option value="Rubin Observation">Rubin Observation</option>
-          <option value="Programming Languages">Programming Languages</option>
-          <option value="Data Mining">Data Mining</option>
-          <option value="Database Systems">Database Systems</option>
+          {dominationFieldsData.map((field) => (
+            <option key={field.value} value={field.value}>
+              {field.label}
+            </option>
+          ))}
         </select>
       </div>
       <input

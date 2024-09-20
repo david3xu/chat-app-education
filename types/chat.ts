@@ -1,5 +1,5 @@
 export interface ChatMessage {
-  id: number;
+  id: string; // Change this from 'number' to 'string'
   role: 'user' | 'assistant';
   content: string;
 }
@@ -10,4 +10,5 @@ export interface Chat {
   messages: ChatMessage[];
   userId: string;
   historyLoaded?: boolean;
+  dominationField: string; // Add this line
 }

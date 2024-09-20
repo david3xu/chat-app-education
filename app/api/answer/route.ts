@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server';
 import { answerQuestion } from '@/actions/questionAnswering';
-import { storeChatMessage } from '@/actions/chatHistory';
+import { fetchChatHistory } from '@/actions/chatHistory';
 
 export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
-  const { message, userId } = await req.json();
-
+  const { message, userId, chatHistory, dominationField } = await req.json();
+  // Remove the check for dominationField, as it will default to 'Science'
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -21,12 +21,11 @@ export async function POST(req: NextRequest) {
 
       try {
         let assistantMessage = '';
+        const history = await fetchChatHistory(userId);
         await answerQuestion(message, async (token) => {
           assistantMessage += token;
           await sendToken(token);
-        }, userId);
-        // Remove this line as it's now handled in answerQuestion
-        // await storeChatMessage(userId, assistantMessage, 'assistant');
+        }, userId, history, dominationField);
       } catch (error) {
         console.error('Error in route handler:', error);
         await sendToken('An error occurred while processing your request.');

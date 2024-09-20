@@ -24,6 +24,18 @@ CREATE TABLE IF NOT EXISTS chat_history (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Modify the chat_history table to include domination_field
+ALTER TABLE chat_history ADD COLUMN IF NOT EXISTS domination_field TEXT;
+
+-- Add chat_id to chat_history table
+ALTER TABLE chat_history ADD COLUMN IF NOT EXISTS chat_id UUID;
+
+-- Ensure chat_id is not null
+ALTER TABLE chat_history ALTER COLUMN chat_id SET NOT NULL;
+
+-- Add index for chat_id
+CREATE INDEX IF NOT EXISTS ix_chat_history_chat_id ON chat_history(chat_id);
+
 -- Add any necessary indexes
 CREATE INDEX IF NOT EXISTS ix_chat_history_user_id ON chat_history(user_id);
 CREATE INDEX IF NOT EXISTS ix_chat_history_created_at ON chat_history(created_at);
@@ -59,7 +71,8 @@ CREATE OR REPLACE FUNCTION hybrid_search(
   match_count INT,
   full_text_weight FLOAT DEFAULT 1,
   semantic_weight FLOAT DEFAULT 1,
-  rrf_k INT DEFAULT 50
+  rrf_k INT DEFAULT 50,
+  in_domination_field TEXT DEFAULT 'Science'
 )
 RETURNS SETOF documents
 LANGUAGE sql
@@ -72,6 +85,7 @@ WITH full_text AS (
     documents
   WHERE 
     fts @@ websearch_to_tsquery(query_text)
+    AND (in_domination_field = 'Science' OR domination_field = in_domination_field)
   ORDER BY rank_ix
   LIMIT LEAST(match_count, 30) * 2
 ),
@@ -81,6 +95,8 @@ semantic AS (
     ROW_NUMBER() OVER(ORDER BY embedding <#> query_embedding) AS rank_ix
   FROM
     documents
+  WHERE
+    (in_domination_field = 'Science' OR domination_field = in_domination_field)
   ORDER BY rank_ix
   LIMIT LEAST(match_count, 30) * 2
 )
@@ -99,12 +115,38 @@ LIMIT
   LEAST(match_count, 30);
 $$;
 
-CREATE POLICY select_policy ON documents FOR SELECT USING (
-  (SELECT COUNT(*) FROM documents WHERE id = documents.id) > 0
-);
+-- Add NOT NULL constraint to domination_field in chat_history table
+ALTER TABLE chat_history ALTER COLUMN domination_field SET NOT NULL;
 
--- Add a policy to allow inserts
-CREATE POLICY insert_policy ON documents FOR INSERT WITH CHECK (true);
+-- Check if the policy exists before creating it
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'public'
+        AND tablename = 'documents'
+        AND policyname = 'select_policy'
+    ) THEN
+        CREATE POLICY select_policy ON documents FOR SELECT USING (
+            (SELECT COUNT(*) FROM documents WHERE id = documents.id) > 0
+        );
+    END IF;
+END $$;
+
+-- Similarly, check for the insert policy
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'public'
+        AND tablename = 'documents'
+        AND policyname = 'insert_policy'
+    ) THEN
+        CREATE POLICY insert_policy ON documents FOR INSERT WITH CHECK (true);
+    END IF;
+END $$;
 
 -- -- Create indexes if they don't exist
 -- CREATE INDEX IF NOT EXISTS ix_documents_document_id ON documents USING btree (document_id);
