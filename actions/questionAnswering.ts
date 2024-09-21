@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import { storeChatMessage } from './chatHistory';
 import { ChatMessage } from '@/types/chat';
-import { getRelaxPrompt, getDocumentPrompt } from '@/lib/prompts';
+import { getRelaxPrompt, getDocumentPrompt, getEmailPrompt } from '@/lib/prompts';
 
 const OLLAMA_SERVER_URL = 'http://localhost:11434'
 
@@ -36,7 +36,7 @@ async function getEmbedding(query: string) {
   return embedding;
 }
 
-export async function answerQuestion(query: string, onToken: (token: string) => void, userId: string, chatHistory: ChatMessage[], dominationField: string) {
+export async function answerQuestion(query: string, onToken: (token: string) => void, userId: string, chatHistory: ChatMessage[], dominationField: string, chatId: string, customPrompt: string) {
   if (!dominationField) throw new Error('Domination field is required');
   try {
     const sanitizedQuery = query.trim().replace(/[\r\n]+/g, ' ').substring(0, 500);
@@ -50,8 +50,12 @@ export async function answerQuestion(query: string, onToken: (token: string) => 
     }
 
     let prompt;
-    if (dominationField === 'Relax') {
+    if (customPrompt) {
+      prompt = `${customPrompt}\n\nPrevious conversation:\n${previousConvo}\n\nCurrent question: ${sanitizedQuery}`;
+    } else if (dominationField === 'Relax') {
       prompt = getRelaxPrompt(previousConvo, sanitizedQuery);
+    } else if (dominationField === 'Email') {
+      prompt = getEmailPrompt(previousConvo, sanitizedQuery);
     } else {
       const embedding = await getEmbedding(sanitizedQuery);
 

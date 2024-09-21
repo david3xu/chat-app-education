@@ -9,7 +9,7 @@ import { ChatMessage } from '@/types/chat';
 const MessageInput: React.FC = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const { addMessageToCurrentChat, setStreamingMessage, updateCurrentChat, isLoading, setIsLoading, currentChat, userId, dominationField } = useChat();
+  const { addMessageToCurrentChat, setStreamingMessage, updateCurrentChat, isLoading, setIsLoading, currentChat, userId, dominationField, customPrompt } = useChat();
 
   const handleSend = async () => {
     if (!message.trim() || !currentChat || isLoading || !dominationField) return;
@@ -33,7 +33,8 @@ const MessageInput: React.FC = () => {
         body: JSON.stringify({ 
           message: userMessage.content, 
           userId,
-          dominationField // Add this line
+          dominationField,
+          customPrompt // Add this line
         }),
       });
 

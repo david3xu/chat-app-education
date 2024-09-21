@@ -5,4 +5,5 @@ export const dominationFieldsData = [
   { value: "Data Mining", label: "Data Mining" },
   { value: "Database Systems", label: "Database Systems" },
   { value: "Relax", label: "Relax" },
+  { value: "Email", label: "Email" },
 ];

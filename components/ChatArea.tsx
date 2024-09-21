@@ -25,6 +25,7 @@ const ChatArea: React.FC = () => {
     userId,
     createNewChat, // Keep this,
     dominationField,
+    savedCustomPrompt,
   } = useChat();
   const [showUploader, setShowUploader] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -47,6 +48,11 @@ const ChatArea: React.FC = () => {
       });
     }
   }, [currentChat, updateCurrentChat]);
+
+  useEffect(() => {
+    // Debug code to log current chat messages
+    console.log("Current chat messages:", currentChat?.messages);
+  }, [currentChat?.messages]);
 
   const addMessageToCurrentChat = (message: ChatMessage) => {
     updateCurrentChat(prevChat => {
@@ -78,7 +84,9 @@ const ChatArea: React.FC = () => {
         (token) => setStreamingMessage(prev => prev + token),
         userId,
         currentChat.messages,
-        dominationField
+        dominationField,
+        currentChat.id,
+        savedCustomPrompt
       );
     } catch (error) {
       console.error('Error in handleSendMessage:', error);

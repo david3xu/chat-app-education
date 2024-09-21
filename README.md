@@ -139,3 +139,15 @@ when I click back, why my new chat 1, new chat 2..., all the chats are empty in 
 Do you mean use chat_id rather than user_id, but currently I don't have a chat_id, 
 Do i need to create chat_id? @chatHistory.ts @Sidebar.tsx @ChatContext.tsx @ChatArea.tsx @questionAnswering.ts @prompts.ts @route.ts @20240908142726_docs.sql @QuestionAnswering.tsx  if you need chat_id, can you please create a sepate file for the implementation?
 
+how to add an prompt ask model answer or write email for me. @ChatArea.tsx @ChatContext.tsx @chatHistory.ts @Sidebar.tsx @questionAnswering.ts @prompts.ts @QuestionAnswering.tsx 
+
+implement email field on sidebar @domFields.ts 
+
+
+# add a customed prompt in the sidebar area
+split sidebar area to two parts, one is for current chat record, another is for custom prompt
+put custom prompt area at the bottom 
+pass the typed custom prompt to the model prompt when chating 
+@actions @app @components @lib 
+
+# add web search engineer for different mode: email, relax, 

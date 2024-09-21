@@ -6,6 +6,7 @@ import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
 import { useChat } from '@/components/ChatContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { dominationFieldsData } from '../lib/data/domFields';
+import CustomPromptArea from './CustomPromptArea';
 
 const Sidebar: React.FC = () => {
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -41,7 +42,7 @@ const Sidebar: React.FC = () => {
   if (!sidebarVisible) return null;
 
   return (
-    <div className="w-[300px] bg-gray-800 p-4 relative">
+    <div className="w-[300px] bg-gray-800 p-4 relative flex flex-col h-screen overflow-hidden">
       <button
         onClick={() => setSidebarVisible(false)}
         className="absolute top-4 right-4 text-white"
@@ -75,39 +76,43 @@ const Sidebar: React.FC = () => {
         </button>
       </div>
       
-      {[...chats].reverse().map(chat => (
-        <div
-          key={chat.id}
-          className="p-2 rounded cursor-pointer relative group flex items-center justify-between"
-          onClick={() => setCurrentChat(chat)}
-        >
-          <span className="text-white">{chat.name}</span>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button 
-                className="text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Trash2 size={16} />
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Chat</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to delete this chat? This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => deleteChat(chat.id)}>
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      ))}
+      <div className="flex-grow overflow-y-auto">
+        {[...chats].reverse().map(chat => (
+          <div
+            key={chat.id}
+            className="p-2 rounded cursor-pointer relative group flex items-center justify-between"
+            onClick={() => setCurrentChat(chat)}
+          >
+            <span className="text-white">{chat.name}</span>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button 
+                  className="text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Chat</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete this chat? This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => deleteChat(chat.id)}>
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        ))}
+      </div>
+
+      <CustomPromptArea />
     </div>
   );
 };

@@ -25,7 +25,8 @@ interface ChatContextType {
   handleSendMessage: (message: string) => Promise<void>;
   dominationField: string;
   setDominationField: (field: string) => void;
-  // dominationFields: string[]; // Add this line
+  savedCustomPrompt: string;
+  setSavedCustomPrompt: (prompt: string) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -38,6 +39,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dominationField, setDominationField] = useState<string>('Science');
+  const [savedCustomPrompt, setSavedCustomPrompt] = useState('');
 
   const [userId, setUserId] = useState<string>('');
 
@@ -169,7 +171,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
         userId,
         currentChat.messages,
-        dominationField
+        dominationField,
+        customPrompt
       );
       
       const assistantMessage: ChatMessage = {
@@ -188,6 +191,18 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setStreamingMessage('');
     }
   };
+
+  const setCustomPrompt = useCallback((prompt: string) => {
+    setSavedCustomPrompt(prompt);
+    localStorage.setItem('customPrompt', prompt);
+  }, []);
+
+  useEffect(() => {
+    const storedPrompt = localStorage.getItem('customPrompt');
+    if (storedPrompt) {
+      setSavedCustomPrompt(storedPrompt);
+    }
+  }, []);
 
   return (
     <ChatContext.Provider value={{
@@ -209,7 +224,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       handleSendMessage,
       dominationField,
       setDominationField,
-      // dominationFields // Add this line
+      savedCustomPrompt,
+      setSavedCustomPrompt,
+      savedCustomPrompt,
+      setCustomPrompt,
     }}>
       {children}
     </ChatContext.Provider>
