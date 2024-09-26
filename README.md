@@ -180,6 +180,8 @@ Update the sidebar to display the new chat immediately.
 Implement functionality to reload the conversation when a chat is clicked.
 
 
+# To ensure that the page fully reloads when switching between chats, you might want to consider the following:
+
 # add history in chat 
 # add multimodel
 # add customized prompt 

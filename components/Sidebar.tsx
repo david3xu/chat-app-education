@@ -9,7 +9,7 @@ import { dominationFieldsData } from '../lib/data/domFields';
 import CustomPromptArea from './CustomPromptArea';
 
 const Sidebar: React.FC = () => {
-  const { chats, currentChat, setCurrentChat, createNewChat, deleteChat, dominationField, setDominationField, loadChatHistory } = useChat();
+  const { chats = [], currentChat, setCurrentChat, createNewChat, deleteChat, dominationField, setDominationField, loadChatHistory } = useChat();
 
   const [sidebarVisible, setSidebarVisible] = useState(false);
 
@@ -23,14 +23,8 @@ const Sidebar: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!dominationField) {
+    if (setDominationField && !dominationField) {
       setDominationField('Science');
-    }
-  }, [dominationField, setDominationField]);
-
-  useEffect(() => {
-    if (!dominationField && dominationFieldsData.length > 0) {
-      setDominationField(dominationFieldsData[0].value);
     }
   }, [dominationField, setDominationField]);
 
@@ -46,29 +40,33 @@ const Sidebar: React.FC = () => {
       </button>
       <div className="flex flex-col items-center mb-4 mt-12">
         <h2 className="text-white text-xl font-bold mb-2">Chats</h2>
-        <Select 
-          onValueChange={setDominationField} 
-          value={dominationField} 
-          defaultValue={dominationFieldsData[0]?.value}
-          required
-        >
-          <SelectTrigger className="w-full mb-2">
-            <SelectValue placeholder="Select field" />
-          </SelectTrigger>
-          <SelectContent>
-            {dominationFieldsData.map((field) => (
-              <SelectItem key={field.value} value={field.value}>
-                {field.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <button
-          onClick={createNewChat}
-          className="text-white bg-blue-500 p-2 rounded-full hover:bg-blue-600 w-full"
-        >
-          <Plus size={20} className="inline mr-2" /> New Chat
-        </button>
+        {setDominationField && (
+          <Select 
+            onValueChange={setDominationField} 
+            value={dominationField} 
+            defaultValue={dominationFieldsData[0]?.value}
+            required
+          >
+            <SelectTrigger className="w-full mb-2">
+              <SelectValue placeholder="Select field" />
+            </SelectTrigger>
+            <SelectContent>
+              {dominationFieldsData.map((field) => (
+                <SelectItem key={field.value} value={field.value}>
+                  {field.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {createNewChat && (
+          <button
+            onClick={createNewChat}
+            className="text-white bg-blue-500 p-2 rounded-full hover:bg-blue-600 w-full"
+          >
+            <Plus size={20} className="inline mr-2" /> New Chat
+          </button>
+        )}
       </div>
       
       <div className="flex-grow overflow-y-auto">
@@ -77,8 +75,8 @@ const Sidebar: React.FC = () => {
             key={chat.id}
             className="p-2 rounded cursor-pointer relative group flex items-center justify-between"
             onClick={() => {
-              setCurrentChat(chat);
-              loadChatHistory(chat.id);
+              setCurrentChat && setCurrentChat(chat);
+              loadChatHistory && loadChatHistory(chat.id);
             }}
           >
             <span className="text-white">{chat.name}</span>
@@ -100,7 +98,7 @@ const Sidebar: React.FC = () => {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => deleteChat(chat.id)}>
+                  <AlertDialogAction onClick={() => deleteChat && deleteChat(chat.id)}>
                     Delete
                   </AlertDialogAction>
                 </AlertDialogFooter>

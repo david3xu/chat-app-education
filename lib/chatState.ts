@@ -3,6 +3,9 @@ import { Chat, ChatMessage } from '@/types/chat';
 import { fetchChatHistory, storeChatMessage } from '@/actions/chatHistory';
 import { answerQuestion } from '@/actions/questionAnswering';
 import { v4 as uuidv4 } from 'uuid';
+import { useRouter } from 'next/navigation'; // Change this to use the new App Router
+
+export type ChatStateType = ReturnType<typeof useChatState>;
 
 export const useChatState = () => {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -15,6 +18,8 @@ export const useChatState = () => {
   const [savedCustomPrompt, setSavedCustomPrompt] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
 
+  const router = useRouter();
+
   const createNewChat = useCallback(() => {
     const newChat: Chat = {
       id: uuidv4(),
@@ -25,7 +30,8 @@ export const useChatState = () => {
     };
     setChats(prevChats => [...prevChats, newChat]);
     setCurrentChat(newChat);
-  }, [chats]);
+    router?.push(`/chat/${newChat.id}`);
+  }, [chats, router]);
 
   const deleteChat = useCallback((chatId: string) => {
     setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));

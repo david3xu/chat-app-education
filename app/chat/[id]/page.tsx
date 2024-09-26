@@ -1,18 +1,19 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/router';
+import { useParams } from 'next/navigation';
 import { useChat } from '@/components/ChatContext';
+import SharedLayout from '@/components/SharedLayout';
 import ChatArea from '@/components/ChatArea';
 import MessageInput from '@/components/MessageInput';
 
 const ChatPage = () => {
-  const router = useRouter();
-  const { id } = router.query;
+  const params = useParams();
+  const id = params.id as string;
   const { loadChatHistory, setCurrentChat, chats } = useChat();
 
   useEffect(() => {
-    if (id && typeof id === 'string') {
+    if (id) {
       const chat = chats.find(c => c.id === id);
       if (chat) {
         setCurrentChat(chat);
@@ -21,17 +22,18 @@ const ChatPage = () => {
         }
       } else {
         // Handle case where chat doesn't exist
-        router.push('/');
+        // You might want to redirect to the home page or show an error message
       }
     }
-  }, [id, chats, setCurrentChat, loadChatHistory, router]);
+  }, [id, chats, setCurrentChat, loadChatHistory]);
 
   return (
-    <div>
+    <SharedLayout>
       <ChatArea />
       <MessageInput />
-    </div>
+    </SharedLayout>
   );
 };
 
 export default ChatPage;
+

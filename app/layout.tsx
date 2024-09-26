@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { ChatProvider } from '@/components/ChatContext';
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -30,7 +31,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ErrorBoundary>
-          {children}
+          <ChatProvider>
+            {children}
+          </ChatProvider>
         </ErrorBoundary>
       </body>
     </html>
