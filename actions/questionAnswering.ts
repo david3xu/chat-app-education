@@ -36,7 +36,7 @@ async function getEmbedding(query: string) {
   return embedding;
 }
 
-export async function answerQuestion(query: string, onToken: (token: string) => void, userId: string, chatHistory: ChatMessage[], dominationField: string, chatId: string, customPrompt: string) {
+export async function answerQuestion(query: string, onToken: (token: string) => void, chatHistory: ChatMessage[], dominationField: string, chatId: string, customPrompt: string) {
   if (!dominationField) throw new Error('Domination field is required');
   try {
     const sanitizedQuery = query.trim().replace(/[\r\n]+/g, ' ').substring(0, 500);
@@ -116,7 +116,7 @@ export async function answerQuestion(query: string, onToken: (token: string) => 
     }
 
     // Update this part
-    await storeChatMessage(userId, query, fullResponse, dominationField);
+    await storeChatMessage(chatId, query, fullResponse, dominationField);
   } catch (error) {
     console.error('Error in answerQuestion:', error);
     await onToken('Sorry, I encountered an error while processing your question.');

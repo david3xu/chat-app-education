@@ -27,10 +27,16 @@ CREATE TABLE IF NOT EXISTS chat_history (
 -- Modify the chat_history table to include domination_field
 ALTER TABLE chat_history ADD COLUMN IF NOT EXISTS domination_field TEXT;
 
--- Add chat_id to chat_history table
-ALTER TABLE chat_history ADD COLUMN IF NOT EXISTS chat_id UUID;
+-- Add chat_id to chat_history table if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name='chat_history' AND column_name='chat_id') THEN
+        ALTER TABLE chat_history ADD COLUMN chat_id UUID;
+    END IF;
+END $$;
 
--- Ensure chat_id is not null
+-- Ensure chat_id is not null (only if the column exists)
 ALTER TABLE chat_history ALTER COLUMN chat_id SET NOT NULL;
 
 -- Add index for chat_id

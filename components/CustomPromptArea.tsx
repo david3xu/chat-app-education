@@ -4,24 +4,23 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 
 const CustomPromptArea: React.FC = () => {
-  const [customPrompt, setCustomPrompt] = useState('');
-  const { setCustomPrompt: setGlobalCustomPrompt, savedCustomPrompt } = useChat();
+  const [localPrompt, setLocalPrompt] = useState('');
+  const { customPrompt, setCustomPrompt } = useChat();
 
   useEffect(() => {
-    setCustomPrompt(savedCustomPrompt || '');
-  }, [savedCustomPrompt]);
+    setLocalPrompt(customPrompt);
+  }, [customPrompt]);
 
   const handleSavePrompt = () => {
-    setGlobalCustomPrompt(customPrompt);
-    localStorage.setItem('customPrompt', customPrompt);
+    setCustomPrompt(localPrompt);
   };
 
   return (
     <div className="mt-4">
       <h3 className="text-white text-lg font-semibold mb-2">Custom Prompt</h3>
       <Textarea
-        value={customPrompt}
-        onChange={(e) => setCustomPrompt(e.target.value)}
+        value={localPrompt}
+        onChange={(e) => setLocalPrompt(e.target.value)}
         placeholder="Enter your custom prompt here..."
         className="w-full mb-2"
         rows={4}

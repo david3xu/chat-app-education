@@ -9,17 +9,16 @@ export default function QuestionAnswering() {
   const [query, setQuery] = useState('')
   const [answer, setAnswer] = useState('')
   const [loading, setLoading] = useState(false)
-  const [userId] = useState(() => localStorage.getItem('userId') || uuidv4())
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [dominationField, setDominationField] = useState('')
 
   useEffect(() => {
     const loadChatHistory = async () => {
-      const history = await fetchChatHistory(userId);
+      const history = await fetchChatHistory('default-chat-id');
       setChatHistory(history);
     };
     loadChatHistory();
-  }, [userId]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,9 +32,10 @@ export default function QuestionAnswering() {
         fullResponse += token
         setAnswer(fullResponse)
       },
-      userId,
       chatHistory,
-      dominationField
+      dominationField,
+      'default-chat-id',
+      '' // Add an empty string for customPrompt
     )
     setLoading(false)
     setChatHistory(prev => [...prev, 

@@ -1,18 +1,21 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Send } from 'lucide-react';
-import TextareaAutosize from "react-textarea-autosize";
 import { useChat } from '@/components/ChatContext';
+import TextareaAutosize from "react-textarea-autosize";
 import { ChatMessage } from '@/types/chat';
+import { Send } from 'react-feather'; // or 'lucide-react', depending on your icon library
 
 const MessageInput: React.FC = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const { addMessageToCurrentChat, setStreamingMessage, updateCurrentChat, isLoading, setIsLoading, currentChat, userId, dominationField, customPrompt } = useChat();
+  const { addMessageToCurrentChat, setStreamingMessage, updateCurrentChat, isLoading, setIsLoading, currentChat, dominationField, customPrompt } = useChat();
 
   const handleSend = async () => {
-    if (!message.trim() || !currentChat || isLoading || !dominationField) return;
+    if (!message.trim() || !currentChat || isLoading || !dominationField) {
+      console.error('Cannot send message: currentChat is null or other conditions are not met');
+      return;
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -32,9 +35,9 @@ const MessageInput: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: userMessage.content, 
-          userId,
           dominationField,
-          customPrompt // Add this line
+          customPrompt,
+          chatId: currentChat.id
         }),
       });
 
@@ -72,7 +75,6 @@ const MessageInput: React.FC = () => {
         }
         partialData = partialData.slice(startIndex);
       }
-
       const assistantMessage: ChatMessage = {
         id: Date.now().toString(),
         role: 'assistant' as const,

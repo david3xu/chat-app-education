@@ -20,6 +20,7 @@ const nextConfig = {
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
+        punycode: false,
       };
     }
     return config;

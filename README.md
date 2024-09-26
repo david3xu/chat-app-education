@@ -150,4 +150,39 @@ put custom prompt area at the bottom
 pass the typed custom prompt to the model prompt when chating 
 @actions @app @components @lib 
 
+#1. make 'save custom prompt' active 
+#2. design first, how to save and use the custom prompt? 
+@actions @components @app @lib @20240908142726_docs.sql
+
+# explore the code. do analysis, the current problem is that chatcontext @ChatContext.tsx  file is too long, split it and update the related code @page.tsx @ChatArea.tsx @CustomPromptArea.tsx @MessageInput.tsx @Sidebar.tsx 
+
+
+
+
+# chat history show on the chat sidebar
+do I need userId in this project ? @chatState.ts @MessageInput.tsx @Sidebar.tsx @ChatContext.tsx @ChatArea.tsx @chatHistory.ts @QuestionAnswering.tsx @questionAnswering.ts ?
+
 # add web search engineer for different mode: email, relax, 
+
+
+# exist problem, can't automatically create a new chat 
+To improve the user experience, we can modify the code to automatically create a new chat if one doesn't exist when the user tries to send a message. Here's how we can update the MessageInput.tsx file:
+
+
+# keep the current features of this project. display history chat info similar like chatgpt sidebar, when you click the chat reload the chat history and can continue the conversation 
+
+# I understand your concern. It seems that when you select a field and click "+ New Chat", the selection is reverting back to "Science" instead of maintaining your chosen field. Let's modify the Sidebar.tsx component to fix this issue.
+
+# Certainly! I'll modify the Sidebar.tsx component and related files to implement the functionality you've described. Let's break this down into steps:
+Modify the Sidebar.tsx to automatically create a new chat when a message is sent if no chat exists.
+Generate a topic for the new chat based on the first message.
+Update the sidebar to display the new chat immediately.
+Implement functionality to reload the conversation when a chat is clicked.
+
+
+# add history in chat 
+# add multimodel
+# add customized prompt 
+# add web search engineer
+
+

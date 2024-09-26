@@ -17,13 +17,12 @@ const ChatArea: React.FC = () => {
     streamingMessage, 
     isLoading, 
     updateCurrentChat, 
-    isLoadingHistory, 
+    isLoadingHistory,
     error,
     setIsLoading,
     setError,
     setStreamingMessage,
-    userId,
-    createNewChat, // Keep this,
+    createNewChat,
     dominationField,
     savedCustomPrompt,
   } = useChat();
@@ -82,7 +81,6 @@ const ChatArea: React.FC = () => {
       await answerQuestion(
         message,
         (token) => setStreamingMessage(prev => prev + token),
-        userId,
         currentChat.messages,
         dominationField,
         currentChat.id,

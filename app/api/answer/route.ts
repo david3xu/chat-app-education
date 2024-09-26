@@ -5,7 +5,15 @@ import { fetchChatHistory } from '@/actions/chatHistory';
 export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
-  const { message, userId, chatHistory, dominationField } = await req.json();
+  const body = await req.json();
+  const chatId = body?.chatId;
+  const { message, chatHistory, dominationField } = body;
+  if (!dominationField) {
+    return new Response(JSON.stringify({ error: 'Domination field is required' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   // Remove the check for dominationField, as it will default to 'Science'
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -21,11 +29,18 @@ export async function POST(req: NextRequest) {
 
       try {
         let assistantMessage = '';
-        const history = await fetchChatHistory(userId);
-        await answerQuestion(message, async (token) => {
-          assistantMessage += token;
-          await sendToken(token);
-        }, userId, history, dominationField);
+        const history = await fetchChatHistory(chatId);
+        await answerQuestion(
+          message,
+          async (token) => {
+            assistantMessage += token;
+            await sendToken(token);
+          },
+          history,
+          dominationField,
+          chatId,
+          '' // Add an empty string for customPrompt if not provided
+        );
       } catch (error) {
         console.error('Error in route handler:', error);
         await sendToken('An error occurred while processing your request.');

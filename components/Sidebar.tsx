@@ -1,29 +1,24 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useChat } from '@/components/ChatContext';
 import { Plus, Trash2, X } from 'lucide-react';
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
-import { useChat } from '@/components/ChatContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { dominationFieldsData } from '../lib/data/domFields';
 import CustomPromptArea from './CustomPromptArea';
 
 const Sidebar: React.FC = () => {
-  const [sidebarVisible, setSidebarVisible] = useState(true);
-  const { chats, currentChat, setCurrentChat, createNewChat, deleteChat, dominationField, setDominationField } = useChat();
+  const { chats, currentChat, setCurrentChat, createNewChat, deleteChat, dominationField, setDominationField, loadChatHistory } = useChat();
+
+  const [sidebarVisible, setSidebarVisible] = useState(false);
 
   useEffect(() => {
+    setSidebarVisible(window.innerWidth >= 768);
     const handleResize = () => {
-      if (window.innerWidth < 768) {
-        setSidebarVisible(false);
-      } else {
-        setSidebarVisible(true);
-      }
+      setSidebarVisible(window.innerWidth >= 768);
     };
-
     window.addEventListener('resize', handleResize);
-    handleResize();
-
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -81,7 +76,10 @@ const Sidebar: React.FC = () => {
           <div
             key={chat.id}
             className="p-2 rounded cursor-pointer relative group flex items-center justify-between"
-            onClick={() => setCurrentChat(chat)}
+            onClick={() => {
+              setCurrentChat(chat);
+              loadChatHistory(chat.id);
+            }}
           >
             <span className="text-white">{chat.name}</span>
             <AlertDialog>
