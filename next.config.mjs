@@ -7,11 +7,11 @@ const nextConfig = {
     return [
       {
         source: '/api/ollama',
-        destination: '/api/ollama',
+        destination: 'http://localhost:11434/api/generate',
       },
       {
         source: '/api/answer',
-        destination: '/api/answer',
+        destination: 'http://localhost:11434/api/generate',
       },
     ];
   },

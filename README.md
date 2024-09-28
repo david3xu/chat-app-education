@@ -209,6 +209,17 @@ Highlight important terms: Use bold or italic formatting for key concepts.
 Include code blocks: When discussing programming concepts, use properly formatted code blocks.
 Add line breaks: Ensure there's enough white space between paragraphs for better readability.
 
+# project review 
+Thank you for providing the project code. I'll give you a brief overview of the project, some simple comments, and suggest potential improvements.
+Project Overview:
+This appears to be a Next.js-based chat application with features like document uploading, question answering, and chat history management. It uses Supabase for backend storage and integrates with an AI model (possibly OpenAI or a local Ollama instance) for generating responses.
+Simple Comments:
+The project has a good structure with separate components for different functionalities (ChatArea, MessageInput, Sidebar, etc.).
+It uses modern React practices like hooks and context for state management.
+3. The application supports different "domination fields" which seem to guide the AI's responses.
+There's functionality for uploading and processing markdown files.
+The UI is styled using Tailwind CSS and includes some custom components.
+
 # add history in chat 
 # add multimodel
 # add customized prompt 

@@ -46,7 +46,7 @@ interface UpdatedChat {
   messages: ChatMessage[];
   historyLoaded: boolean;
   name?: string;
-  dominationField?: any; // Replace 'any' with the actual type if known
+  dominationField: string;
 }
 
 export interface Message {

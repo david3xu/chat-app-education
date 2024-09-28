@@ -5,8 +5,7 @@ import { fetchChatHistory } from '@/actions/chatHistory';
 export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { message, chatId, dominationField, customPrompt } = body;
+  const { message, chatId, dominationField, customPrompt } = await req.json();
   if (!dominationField) {
     return new Response(JSON.stringify({ error: 'Domination field is required' }), {
       status: 400,
@@ -14,32 +13,26 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      const sendToken = async (token: string) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token })}\n\n`));
-      };
+  const history = await fetchChatHistory(chatId);
 
-      try {
-        const history = await fetchChatHistory(chatId);
-        await answerQuestion(
-          [...history, { role: 'user', content: message }],
-          sendToken,
-          dominationField,
-          chatId,
-          customPrompt
-        );
-      } catch (error) {
-        console.error('Error in route handler:', error);
-        await sendToken('An error occurred while processing your request.');
-      } finally {
-        controller.close();
-      }
+  const stream = new TransformStream();
+  const writer = stream.writable.getWriter();
+
+  // Implement word-by-word streaming
+  answerQuestion(
+    [...history, { role: 'user', content: message }],
+    async (token) => {
+      await writer.write(`data: ${JSON.stringify({ token })}\n\n`);
     },
+    dominationField,
+    chatId,
+    customPrompt
+  ).then(() => writer.close()).catch((error) => {
+    console.error('Error in answerQuestion:', error);
+    writer.abort(error);
   });
 
-  return new Response(stream, {
+  return new Response(stream.readable, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',

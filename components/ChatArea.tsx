@@ -88,9 +88,12 @@ const ChatArea: React.FC = () => {
   }, [currentChat, updateCurrentChat, setError]);
 
   useEffect(() => {
-    // Debug code to log current chat messages
     console.log("Current chat messages:", currentChat?.messages);
   }, [currentChat?.messages]);
+
+  useEffect(() => {
+    console.log('Streaming message updated:', streamingMessage);
+  }, [streamingMessage]);
 
   const addMessageToCurrentChat = (message: ChatMessage) => {
     updateCurrentChat(prevChat => {
@@ -99,25 +102,8 @@ const ChatArea: React.FC = () => {
     });
   };
 
-  const handleSendMessage = async ({
-    message,
-    currentChat,
-    addMessageToCurrentChat,
-    setIsLoading,
-    setError,
-    setStreamingMessage,
-    dominationField
-  }: {
-    message: string;
-    currentChat: Chat;
-    addMessageToCurrentChat: (message: ChatMessage) => void;
-    setIsLoading: (isLoading: boolean) => void;
-    setError: (error: string | null) => void;
-    setStreamingMessage: (message: string | null) => void;
-    dominationField: string;
-  }) => {
-    if (!dominationField) return;
-    if (!currentChat) return;
+  const handleSendMessage = async (message: string) => {
+    if (!dominationField || !currentChat) return;
 
     const userMessage: ChatMessage = {
       id: uuidv4(),
@@ -131,15 +117,17 @@ const ChatArea: React.FC = () => {
     setError(null);
 
     try {
-      await handleSendMessage({
-        message,
-        currentChat,
-        addMessageToCurrentChat,
-        setIsLoading,
-        setError,
-        setStreamingMessage,
-        dominationField
-      });
+      await answerQuestion(
+        currentChat.messages.map(msg => ({ role: msg.role, content: msg.content })),
+        (token) => {
+          setStreamingMessage(prev => prev + token);
+          // Force a small delay to make the streaming more visible
+          return new Promise(resolve => setTimeout(resolve, 10));
+        },
+        dominationField,
+        currentChat.id,
+        savedCustomPrompt
+      );
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
       setError('An error occurred while processing your message.');
@@ -149,8 +137,12 @@ const ChatArea: React.FC = () => {
     }
   };
 
+  const handleStreamingMessage = useCallback((token: string) => {
+    setStreamingMessage(prev => prev + token);
+  }, []);
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex-1 overflow-y-auto p-4 space-y-4">
       <div className="flex justify-between items-center mb-4">
         {!showUploader && <h1 className="text-white text-4xl font-bold">Chat Area</h1>}
         <h1 className="text-white text-4xl font-bold" onClick={() => setShowUploader(!showUploader)}>

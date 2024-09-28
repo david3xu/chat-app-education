@@ -37,6 +37,28 @@ async function getEmbedding(query: string) {
   return embedding;
 }
 
+function structureResponse(content: string): string {
+  // Split the content into paragraphs
+  const paragraphs = content.split('\n\n');
+
+  // Structure the response
+  let structuredResponse = '';
+
+  // Add a brief introduction
+  structuredResponse += `## ${paragraphs[0]}\n\n`;
+
+  // Add main points
+  structuredResponse += "### Key Points:\n\n";
+  for (let i = 1; i < paragraphs.length - 1; i++) {
+    structuredResponse += `- ${paragraphs[i]}\n`;
+  }
+
+  // Add a conclusion or summary
+  structuredResponse += `\n### Summary:\n\n${paragraphs[paragraphs.length - 1]}\n`;
+
+  return structuredResponse;
+}
+
 export async function answerQuestion(
   messages: { role: string; content: string }[], 
   onToken: (token: string) => void, 
@@ -138,8 +160,13 @@ export async function answerQuestion(
     console.log(`sanitized query: ${sanitizedQuery}`);
     console.log(`prompt: ${prompt}`);
 
-    // Store the complete response
-    await storeChatMessage(chatId, 'assistant', fullResponse, dominationField);
+    // Structure the full response before saving
+    const structuredResponse = structureResponse(fullResponse);
+
+    // Save the structured response
+    await storeChatMessage(chatId, 'assistant', structuredResponse, dominationField);
+
+    return structuredResponse;
   } catch (error) {
     console.error('Error in answerQuestion:', error);
     await onToken('Sorry, I encountered an error while processing your question.');
