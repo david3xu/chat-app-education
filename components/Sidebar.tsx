@@ -7,9 +7,21 @@ import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { dominationFieldsData } from '../lib/data/domFields';
 import CustomPromptArea from './CustomPromptArea';
+import { ChatContextType } from '@/types/chat';
 
 const Sidebar: React.FC = () => {
-  const { chats = [], currentChat, setCurrentChat, createNewChat, deleteChat, dominationField, setDominationField, loadChatHistory } = useChat();
+  const { 
+    chats = [], 
+    currentChat, 
+    setCurrentChat, 
+    createNewChat, 
+    deleteChat, 
+    dominationField, 
+    setDominationField, 
+    loadChatHistory, 
+    customPrompt, 
+    setCustomPrompt 
+  } = useChat() as unknown as ChatContextType;
 
   const [sidebarVisible, setSidebarVisible] = useState(false);
 
@@ -70,42 +82,48 @@ const Sidebar: React.FC = () => {
       </div>
       
       <div className="flex-grow overflow-y-auto">
-        {[...chats].reverse().map(chat => (
-          <div
-            key={chat.id}
-            className="p-2 rounded cursor-pointer relative group flex items-center justify-between"
-            onClick={() => {
-              setCurrentChat && setCurrentChat(chat);
-              loadChatHistory && loadChatHistory(chat.id);
-            }}
-          >
-            <span className="text-white">{chat.name}</span>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button 
-                  className="text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Chat</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete this chat? This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => deleteChat && deleteChat(chat.id)}>
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        ))}
+        {chats.length > 0 ? (
+          [...chats].reverse().map(chat => (
+            <div
+              key={chat.id}
+              className={`p-2 rounded cursor-pointer relative group flex items-center justify-between ${
+                currentChat?.id === chat.id ? 'bg-blue-600' : ''
+              }`}
+              onClick={() => {
+                setCurrentChat && setCurrentChat(chat);
+                loadChatHistory && loadChatHistory(chat.id);
+              }}
+            >
+              <span className="text-white">{chat.name || `Chat ${chat.id.slice(0, 8)}`}</span>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button 
+                    className="text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Chat</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete this chat? This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => deleteChat && deleteChat(chat.id)}>
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          ))
+        ) : (
+          <div className="text-white text-center">No chats available</div>
+        )}
       </div>
 
       <CustomPromptArea />

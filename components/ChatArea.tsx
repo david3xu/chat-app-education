@@ -1,34 +1,63 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useChat } from '@/components/ChatContext';
 import { Button } from "@/components/ui/button";
 import { MarkdownUploader } from "@/components/MarkdownUploader";
 import { fetchChatHistory } from '@/actions/chatHistory';
 import { answerQuestion } from '@/actions/questionAnswering';
 import { v4 as uuidv4 } from 'uuid';
-import { ChatMessage } from '@/types/chat';
+import { ChatMessage, Chat } from '@/types/chat';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ReactMarkdown from 'react-markdown';
+import { ChatContextType } from '@/types/chat';
 
 const ChatArea: React.FC = () => {
-  const { 
+  const {
     currentChat, 
     streamingMessage, 
     isLoading, 
     updateCurrentChat, 
-    isLoadingHistory,
     error,
     setIsLoading,
     setError,
     setStreamingMessage,
     createNewChat,
     dominationField,
-    savedCustomPrompt,
-  } = useChat();
+    savedCustomPrompt = '', // Provide a default value
+  } = useChat() as unknown as ChatContextType; // Use ChatContextType instead of any
   const [showUploader, setShowUploader] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
+
+  const loadChatHistory = useCallback(() => {
+    if (currentChat && !currentChat.historyLoaded && retryCount < MAX_RETRIES) {
+      setIsLoadingHistory(true);
+      fetchChatHistory(currentChat.id)
+        .then(history => {
+          updateCurrentChat(prevChat => 
+            prevChat ? { ...prevChat, messages: history, historyLoaded: true } : null
+          );
+          setRetryCount(0);
+        })
+        .catch(error => {
+          console.error("Error fetching chat history:", error);
+          setError("Failed to load chat history. Retrying...");
+          setRetryCount(prev => prev + 1);
+        })
+        .finally(() => {
+          setIsLoadingHistory(false);
+        });
+    }
+  }, [currentChat, updateCurrentChat, setError, retryCount]);
+
+  useEffect(() => {
+    loadChatHistory();
+  }, [loadChatHistory]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -38,15 +67,25 @@ const ChatArea: React.FC = () => {
 
   useEffect(() => {
     if (currentChat && !currentChat.historyLoaded) {
-      fetchChatHistory(currentChat.id).then(history => {
-        updateCurrentChat(prevChat => ({
-          ...prevChat!,
-          messages: history,
-          historyLoaded: true
-        }));
-      });
+      setIsLoadingHistory(true);
+      fetchChatHistory(currentChat.id)
+        .then(history => {
+          updateCurrentChat(prevChat => {
+            if (prevChat) {
+              return { ...prevChat, messages: history, historyLoaded: true };
+            }
+            return prevChat;
+          });
+        })
+        .catch(error => {
+          console.error("Error fetching chat history:", error);
+          setError("Failed to load chat history. Please try again.");
+        })
+        .finally(() => {
+          setIsLoadingHistory(false);
+        });
     }
-  }, [currentChat, updateCurrentChat]);
+  }, [currentChat, updateCurrentChat, setError]);
 
   useEffect(() => {
     // Debug code to log current chat messages
@@ -56,14 +95,27 @@ const ChatArea: React.FC = () => {
   const addMessageToCurrentChat = (message: ChatMessage) => {
     updateCurrentChat(prevChat => {
       if (!prevChat) return null;
-      return {
-        ...prevChat,
-        messages: [...prevChat.messages, message]
-      };
+      return { ...prevChat, messages: [...prevChat.messages, message] };
     });
   };
 
-  const handleSendMessage = async (message: string) => {
+  const handleSendMessage = async ({
+    message,
+    currentChat,
+    addMessageToCurrentChat,
+    setIsLoading,
+    setError,
+    setStreamingMessage,
+    dominationField
+  }: {
+    message: string;
+    currentChat: Chat;
+    addMessageToCurrentChat: (message: ChatMessage) => void;
+    setIsLoading: (isLoading: boolean) => void;
+    setError: (error: string | null) => void;
+    setStreamingMessage: (message: string | null) => void;
+    dominationField: string;
+  }) => {
     if (!dominationField) return;
     if (!currentChat) return;
 
@@ -71,6 +123,7 @@ const ChatArea: React.FC = () => {
       id: uuidv4(),
       role: 'user',
       content: message,
+      dominationField,
     };
 
     addMessageToCurrentChat(userMessage);
@@ -78,14 +131,15 @@ const ChatArea: React.FC = () => {
     setError(null);
 
     try {
-      await answerQuestion(
+      await handleSendMessage({
         message,
-        (token) => setStreamingMessage(prev => prev + token),
-        currentChat.messages,
-        dominationField,
-        currentChat.id,
-        savedCustomPrompt
-      );
+        currentChat,
+        addMessageToCurrentChat,
+        setIsLoading,
+        setError,
+        setStreamingMessage,
+        dominationField
+      });
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
       setError('An error occurred while processing your message.');
@@ -117,7 +171,7 @@ const ChatArea: React.FC = () => {
           <div className="text-white">Loading chat history...</div>
         ) : (
           <>
-            {currentChat?.messages.map((msg) => (
+            {currentChat?.messages?.map((msg: ChatMessage) => (
               <div key={msg.id} className={`mb-2 flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`p-2 rounded-lg ${
@@ -149,6 +203,11 @@ const ChatArea: React.FC = () => {
               </div>
             )}
             <div ref={messagesEndRef} />
+            {error && (
+              <Button onClick={loadChatHistory} disabled={isLoadingHistory || retryCount >= MAX_RETRIES}>
+                Retry Loading History
+              </Button>
+            )}
           </>
         )}
       </div>

@@ -11,6 +11,7 @@ export default function QuestionAnswering() {
   const [loading, setLoading] = useState(false)
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [dominationField, setDominationField] = useState('')
+  const [customPrompt, setCustomPrompt] = useState('')
 
   useEffect(() => {
     const loadChatHistory = async () => {
@@ -24,23 +25,23 @@ export default function QuestionAnswering() {
     e.preventDefault();
     if (!dominationField) return;
     console.log("Domination field:", dominationField);
-    setLoading(true)
-    let fullResponse = ''
+    setLoading(true);
+    let fullResponse = '';
     await answerQuestion(
-      query,
+      chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
       (token) => {
-        fullResponse += token
-        setAnswer(fullResponse)
+        fullResponse += token;
+        setAnswer(fullResponse);
       },
-      chatHistory,
       dominationField,
       'default-chat-id',
-      '' // Add an empty string for customPrompt
-    )
-    setLoading(false)
-    setChatHistory(prev => [...prev, 
-      { id: uuidv4(), role: 'user', content: query },
-      { id: uuidv4(), role: 'assistant', content: fullResponse }
+      customPrompt
+    );
+    setLoading(false);
+    setChatHistory(prev => [
+      ...prev, 
+      { id: uuidv4(), role: 'user', content: query, dominationField },
+      { id: uuidv4(), role: 'assistant', content: fullResponse, dominationField }
     ]);
   }
 

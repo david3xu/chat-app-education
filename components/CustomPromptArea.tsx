@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 
 const CustomPromptArea: React.FC = () => {
   const [localPrompt, setLocalPrompt] = useState('');
-  const { customPrompt, setCustomPrompt } = useChat();
+  const { customPrompt, setCustomPrompt } = useChat() as { customPrompt: string, setCustomPrompt: (prompt: string) => void };
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
     setLocalPrompt(customPrompt);
@@ -13,6 +14,8 @@ const CustomPromptArea: React.FC = () => {
 
   const handleSavePrompt = () => {
     setCustomPrompt(localPrompt);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000); // Hide message after 3 seconds
   };
 
   return (
@@ -28,6 +31,7 @@ const CustomPromptArea: React.FC = () => {
       <Button onClick={handleSavePrompt} className="w-full">
         Save Custom Prompt
       </Button>
+      {saveSuccess && <p className="text-green-500 mt-2">Custom prompt saved successfully!</p>}
     </div>
   );
 };

@@ -19,32 +19,23 @@ WHERE NOT EXISTS (SELECT 1 FROM users);
 CREATE TABLE IF NOT EXISTS chat_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) DEFAULT '00000000-0000-0000-0000-000000000000',
-    user_input TEXT,
-    assistant_response TEXT,
-    created_at TIMESTAMPTZ DEFAULT now()
+    created_at TIMESTAMPTZ DEFAULT now(),
+    domination_field TEXT NOT NULL,
+    chat_id UUID NOT NULL,
+    user_content TEXT,
+    assistant_content TEXT,
+    user_role TEXT,
+    assistant_role TEXT
 );
 
--- Modify the chat_history table to include domination_field
-ALTER TABLE chat_history ADD COLUMN IF NOT EXISTS domination_field TEXT;
-
--- Add chat_id to chat_history table if it doesn't exist
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name='chat_history' AND column_name='chat_id') THEN
-        ALTER TABLE chat_history ADD COLUMN chat_id UUID;
-    END IF;
-END $$;
-
--- Ensure chat_id is not null (only if the column exists)
-ALTER TABLE chat_history ALTER COLUMN chat_id SET NOT NULL;
-
--- Add index for chat_id
+-- Add indexes
 CREATE INDEX IF NOT EXISTS ix_chat_history_chat_id ON chat_history(chat_id);
-
--- Add any necessary indexes
 CREATE INDEX IF NOT EXISTS ix_chat_history_user_id ON chat_history(user_id);
 CREATE INDEX IF NOT EXISTS ix_chat_history_created_at ON chat_history(created_at);
+CREATE INDEX IF NOT EXISTS ix_chat_history_user_content ON chat_history(user_content);
+CREATE INDEX IF NOT EXISTS ix_chat_history_assistant_content ON chat_history(assistant_content);
+CREATE INDEX IF NOT EXISTS ix_chat_history_user_role ON chat_history(user_role);
+CREATE INDEX IF NOT EXISTS ix_chat_history_assistant_role ON chat_history(assistant_role);
 
 -- Create the documents table
 CREATE TABLE IF NOT EXISTS documents (
@@ -121,9 +112,6 @@ LIMIT
   LEAST(match_count, 30);
 $$;
 
--- Add NOT NULL constraint to domination_field in chat_history table
-ALTER TABLE chat_history ALTER COLUMN domination_field SET NOT NULL;
-
 -- Check if the policy exists before creating it
 DO $$
 BEGIN
@@ -153,71 +141,3 @@ BEGIN
         CREATE POLICY insert_policy ON documents FOR INSERT WITH CHECK (true);
     END IF;
 END $$;
-
--- -- Create indexes if they don't exist
--- CREATE INDEX IF NOT EXISTS ix_documents_document_id ON documents USING btree (document_id);
--- CREATE INDEX IF NOT EXISTS ix_documents_source ON documents USING btree (source);
--- CREATE INDEX IF NOT EXISTS ix_documents_source_id ON documents USING btree (source_id);
--- CREATE INDEX IF NOT EXISTS ix_documents_author ON documents USING btree (author);
--- CREATE INDEX IF NOT EXISTS ix_documents_created_at ON documents USING brin (created_at);
--- CREATE INDEX IF NOT EXISTS ix_documents_content_fts ON documents USING gin (to_tsvector('english', content));
--- CREATE INDEX IF NOT EXISTS ix_documents_embedding ON documents USING ivfflat(embedding) WITH (lists=100);
-
--- -- Drop the existing hybrid_search function if it exists
--- DROP FUNCTION IF EXISTS hybrid_search(text, vector(1024), int, float, float, int, text);
-
--- -- Create the new hybrid_search function
--- CREATE OR REPLACE FUNCTION hybrid_search(
---   query_text TEXT,
---   query_embedding VECTOR(1024),
---   match_count INT,
---   full_text_weight FLOAT DEFAULT 1,
---   semantic_weight FLOAT DEFAULT 1,
---   rrf_k INT DEFAULT 50,
---   in_domination_field TEXT DEFAULT '%%',
---   -- in_min_similarity FLOAT DEFAULT 0.001, -- Lower this value
---   in_max_tokens INT DEFAULT 5000
--- )
--- RETURNS SETOF documents
--- LANGUAGE sql
--- AS $$
--- WITH full_text AS (
---   SELECT 
---     id, 
---     ROW_NUMBER() OVER(ORDER BY ts_rank_cd(to_tsvector('english', content), websearch_to_tsquery(query_text)) DESC) AS rank_ix 
---   FROM 
---     documents
---   WHERE 
---     to_tsvector('english', content) @@ websearch_to_tsquery(query_text)
---     AND (domination_field LIKE in_domination_field OR domination_field IS NULL)
---   ORDER BY rank_ix
---   LIMIT LEAST(match_count, 30) * 2
--- ),
--- semantic AS (
---   SELECT 
---     id,
---     ROW_NUMBER() OVER(ORDER BY embedding <#> query_embedding) AS rank_ix
---   FROM 
---     documents
---   WHERE 
---     (domination_field LIKE in_domination_field OR domination_field IS NULL)
---     AND (embedding <#> query_embedding) > in_min_similarity
---   ORDER BY rank_ix
---   LIMIT LEAST(match_count, 30) * 2
--- )
--- SELECT
---   documents.*
--- FROM
---   full_text
---   FULL OUTER JOIN semantic
---     ON full_text.id = semantic.id 
---   JOIN documents
---     ON COALESCE(full_text.id, semantic.id) = documents.id
--- WHERE
---   LENGTH(documents.content) <= in_max_tokens
--- ORDER BY
---   COALESCE(1.0 / (rrf_k + full_text.rank_ix), 0.0) * full_text_weight + 
---   COALESCE(1.0 / (rrf_k + semantic.rank_ix), 0.0) * semantic_weight DESC
--- LIMIT
---   LEAST(match_count, 30);
--- $$;

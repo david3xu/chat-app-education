@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useChatState, ChatStateType } from '@/lib/chatState';
+import { fetchChatHistory } from '@/actions/chatHistory';
 
 const ChatContext = createContext<ChatStateType | undefined>(undefined);
 
@@ -14,7 +15,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <ChatContext.Provider value={isClient ? chatState : undefined}>
+    <ChatContext.Provider value={{
+      ...chatState,
+    }}>
       {children}
     </ChatContext.Provider>
   );
@@ -23,8 +26,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 export const useChat = () => {
   const context = useContext(ChatContext);
   if (context === undefined) {
-    // Instead of throwing an error, return a default state
-    return {} as ChatStateType;
+    return {
+      chats: [],
+      currentChat: null,
+      setCurrentChat: () => {},
+      updateCurrentChat: () => {},
+      loadChatHistory: async () => {},
+      // Add other properties with default values
+    };
   }
   return context;
 };

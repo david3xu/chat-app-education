@@ -4,32 +4,69 @@ import React, { useState } from 'react';
 import { useChat } from '@/components/ChatContext';
 import TextareaAutosize from "react-textarea-autosize";
 import { ChatMessage } from '@/types/chat';
-import { Send } from 'react-feather'; // or 'lucide-react', depending on your icon library
+import { Send } from 'react-feather';
+import { ChatContextType, Chat } from '@/types/chat';
+import { useRouter } from 'next/navigation';
 
-const MessageInput: React.FC = () => {
+interface MessageInputProps {
+  setStreamingMessage?: (message: string) => void;
+}
+
+const MessageInput: React.FC<MessageInputProps> = ({ setStreamingMessage: updateStreamingMessage }) => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const { addMessageToCurrentChat, setStreamingMessage, updateCurrentChat, isLoading, setIsLoading, currentChat, dominationField, customPrompt } = useChat();
+  const [streamingMessage, setStreamingMessage] = useState('');
+  const { 
+    updateCurrentChat,
+    isLoading, 
+    setIsLoading, 
+    currentChat, 
+    setCurrentChat,
+    dominationField, 
+    customPrompt,
+    createNewChat
+  } = useChat() as unknown as ChatContextType;
+  const router = useRouter();
 
   const handleSend = async () => {
-    if (!message.trim() || !currentChat || isLoading || !dominationField) {
-      console.error('Cannot send message: currentChat is null or other conditions are not met');
+    if (!message.trim() || isLoading) {
+      console.error('Cannot send message: message is empty or still loading');
       return;
+    }
+
+    if (!dominationField) {
+      console.error('Cannot send message: domination field is not set');
+      return;
+    }
+
+    let chatToUse = currentChat;
+
+    if (!chatToUse) {
+      chatToUse = createNewChat();
     }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: "user" as const,
       content: message,
+      dominationField,
     };
 
-    addMessageToCurrentChat(userMessage);
+    updateCurrentChat(prevChat => {
+      if (prevChat) {
+        return {
+          ...prevChat,
+          messages: [...prevChat.messages, userMessage]
+        };
+      }
+      return prevChat;
+    });
+
     setMessage("");
-    setStreamingMessage('');
-    setIsLoading(true);
+    setStreamingMessage?.('');
+    setIsLoading?.(true);
 
     try {
-      let fullResponse = '';
       const response = await fetch('/api/answer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -37,7 +74,7 @@ const MessageInput: React.FC = () => {
           message: userMessage.content, 
           dominationField,
           customPrompt,
-          chatId: currentChat.id
+          chatId: chatToUse?.id ?? ''
         }),
       });
 
@@ -48,54 +85,63 @@ const MessageInput: React.FC = () => {
       const reader = response.body?.getReader();
       if (!reader) throw new Error('Response body is null');
       
-      let partialData = '';
+      let streamedResponse = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
         const text = new TextDecoder().decode(value);
-        partialData += text;
+        const lines = text.split('\n');
         
-        let startIndex = 0;
-        while (true) {
-          const endIndex = partialData.indexOf('\n', startIndex);
-          if (endIndex === -1) break;
-          
-          const line = partialData.slice(startIndex, endIndex).trim();
+        for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
-              const { token } = JSON.parse(line.slice(6));
-              fullResponse += token;
-              setStreamingMessage(fullResponse);
+              const { token } = JSON.parse(line.slice(5));
+              streamedResponse += token;
+              setStreamingMessage(streamedResponse);
+              console.log('Received token:', token);
             } catch (parseError) {
-              // Ignore parse errors for incomplete JSON
+              console.error('Error parsing SSE message:', parseError);
             }
           }
-          startIndex = endIndex + 1;
         }
-        partialData = partialData.slice(startIndex);
       }
+
       const assistantMessage: ChatMessage = {
         id: Date.now().toString(),
         role: 'assistant' as const,
-        content: fullResponse
+        content: streamedResponse,
+        dominationField,
       };
-      addMessageToCurrentChat(assistantMessage);
+
+      updateCurrentChat(prevChat => {
+        if (prevChat) {
+          return {
+            ...prevChat,
+            messages: [...prevChat.messages, assistantMessage]
+          };
+        }
+        return prevChat;
+      });
 
     } catch (error) {
       console.error('Error:', error);
       setError('An error occurred while processing your request.');
     } finally {
-      setStreamingMessage('');
-      setIsLoading(false);
+      setIsLoading?.(false);
+      setStreamingMessage?.('');
     }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessage(e.target.value);
   };
 
   return (
     <div className="relative bg-gray-800 rounded-lg p-2 mt-4">
       <TextareaAutosize
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleInputChange(e)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();

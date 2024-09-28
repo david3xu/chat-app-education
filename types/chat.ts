@@ -2,7 +2,7 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  dominationField?: string;
+  dominationField: string;
 }
 
 export interface Chat {
@@ -24,7 +24,7 @@ export interface ChatContextType {
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
   setStreamingMessage: React.Dispatch<React.SetStateAction<string>>;
-  createNewChat: () => void;
+  createNewChat: () => Chat;
   dominationField: string;
   setDominationField: (value: string) => void;
   savedCustomPrompt: string;
@@ -36,4 +36,19 @@ export interface ChatContextType {
   loadChatHistory: (chatId: string) => void;
   model: string;
   setModel: React.Dispatch<React.SetStateAction<string>>;
+  updateCurrentChat: (updater: (prevChat: Chat | null) => Chat | null) => void;
+  customPrompt: string;
+  setCustomPrompt: React.Dispatch<React.SetStateAction<string>>;
+}
+
+interface UpdatedChat {
+  id: string;
+  messages: ChatMessage[];
+  historyLoaded: boolean;
+  name?: string;
+  dominationField?: any; // Replace 'any' with the actual type if known
+}
+
+export interface Message {
+  // ... message properties
 }

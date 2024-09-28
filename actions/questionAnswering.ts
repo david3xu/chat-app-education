@@ -3,6 +3,7 @@ import OpenAI from 'openai'
 import { storeChatMessage } from './chatHistory';
 import { ChatMessage } from '@/types/chat';
 import { getRelaxPrompt, getDocumentPrompt, getEmailPrompt } from '@/lib/prompts';
+import { OpenAIStream } from 'ai';
 
 const OLLAMA_SERVER_URL = 'http://localhost:11434'
 
@@ -36,26 +37,36 @@ async function getEmbedding(query: string) {
   return embedding;
 }
 
-export async function answerQuestion(query: string, onToken: (token: string) => void, chatHistory: ChatMessage[], dominationField: string, chatId: string, customPrompt: string) {
+export async function answerQuestion(
+  messages: { role: string; content: string }[], 
+  onToken: (token: string) => void, 
+  dominationField: string, 
+  chatId: string, 
+  customPrompt?: string
+) {
   if (!dominationField) throw new Error('Domination field is required');
   try {
-    const sanitizedQuery = query.trim().replace(/[\r\n]+/g, ' ').substring(0, 500);
+    const sanitizedQuery = messages[messages.length - 1].content.trim().replace(/[\r\n]+/g, ' ').substring(0, 500);
 
-    let previousConvo = '';
-    if (chatHistory && chatHistory.length > 0) {
-      const recentHistory = chatHistory.slice(-5);
-      previousConvo = recentHistory.map(msg => 
-        `${msg.role.toUpperCase()}: ${msg.content}`
-      ).join('\n');
-    }
+    let previousConvo = messages.slice(0, -1).map(msg => 
+      `${msg.role.toUpperCase()}: ${msg.content}`
+    ).join('\n');
 
     let prompt;
-    if (customPrompt) {
-      prompt = `${customPrompt}\n\nPrevious conversation:\n${previousConvo}\n\nCurrent question: ${sanitizedQuery}`;
-    } else if (dominationField === 'Relax') {
-      prompt = getRelaxPrompt(previousConvo, sanitizedQuery);
+    // add a default base prompt
+    const defaultBasePrompt = `Basic requirements:
+1. Focus on answering the question.
+2. Depending on the chat question, consider including chat history as input content.
+3. Answer questions with good structure and logic.
+
+`;
+
+    const basePrompt = defaultBasePrompt + (customPrompt ? `${customPrompt}\n\n` : '');
+
+    if (dominationField === 'Relax') {
+      prompt = basePrompt + getRelaxPrompt(previousConvo, sanitizedQuery);
     } else if (dominationField === 'Email') {
-      prompt = getEmailPrompt(previousConvo, sanitizedQuery);
+      prompt = basePrompt + getEmailPrompt(previousConvo, sanitizedQuery);
     } else {
       const embedding = await getEmbedding(sanitizedQuery);
 
@@ -65,10 +76,8 @@ export async function answerQuestion(query: string, onToken: (token: string) => 
         match_count: 50,
         full_text_weight: 1.0,
         semantic_weight: 1.0,
-        in_domination_field: dominationField || 'Science',
+        in_domination_field: dominationField
       });
-
-      console.log('Hybrid search result:', pageSections);
 
       if (error) {
         console.error('Error in hybrid_search:', error);
@@ -85,12 +94,25 @@ export async function answerQuestion(query: string, onToken: (token: string) => 
         contextText += `${section.content.trim()}\n---\n`;
       }
 
-      prompt = getDocumentPrompt(contextText, previousConvo, sanitizedQuery);
+      prompt = basePrompt + getDocumentPrompt(contextText, previousConvo, sanitizedQuery);
     }
+
+    // // Add the previous conversation and current question to the prompt
+    // prompt += `\n\nPrevious conversation:\n${previousConvo}\n\nCurrent question: ${sanitizedQuery}`;
+
+    // Validate messages before sending to OpenAI API
+    const validMessages = messages.filter(msg => msg.content && msg.content.trim() !== '');
 
     const completion = await openai.chat.completions.create({
       model: 'llama3.1:latest',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'system', content: 'You are a helpful assistant.' },
+        ...validMessages.map(msg => ({
+          role: msg.role as 'system' | 'user' | 'assistant',
+          content: msg.content
+        })),
+        { role: 'user', content: prompt }
+      ],
       stream: true,
       max_tokens: 2048,
       temperature: 0.0,
@@ -100,23 +122,24 @@ export async function answerQuestion(query: string, onToken: (token: string) => 
     for await (const chunk of completion) {
       const token = chunk.choices[0]?.delta?.content || '';
       if (token) {
+        onToken(token);
         fullResponse += token;
-        await onToken(token);
         
-        // Check if the response has reached a reasonable length
-        if (fullResponse.length > 8000) {
-          break;
-        }
+        // Remove the delay to allow for smoother output
+        // await new Promise(resolve => setTimeout(resolve, 10));
       }
       
-      // Check if the generation is complete
       if (chunk.choices[0]?.finish_reason) {
         break;
       }
     }
 
-    // Update this part
-    await storeChatMessage(chatId, query, fullResponse, dominationField);
+    console.log(`previous convo: ${previousConvo}`);
+    console.log(`sanitized query: ${sanitizedQuery}`);
+    console.log(`prompt: ${prompt}`);
+
+    // Store the complete response
+    await storeChatMessage(chatId, 'assistant', fullResponse, dominationField);
   } catch (error) {
     console.error('Error in answerQuestion:', error);
     await onToken('Sorry, I encountered an error while processing your question.');

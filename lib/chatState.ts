@@ -17,6 +17,7 @@ export const useChatState = () => {
   const [dominationField, setDominationField] = useState<string>('Science');
   const [savedCustomPrompt, setSavedCustomPrompt] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
+  const [model, setModel] = useState<string>('llama3.1'); // Add this line
 
   const router = useRouter();
 
@@ -24,14 +25,15 @@ export const useChatState = () => {
     const newChat: Chat = {
       id: uuidv4(),
       name: `New Chat ${chats.length + 1}`,
-      dominationField: '0',
+      dominationField: dominationField,
       messages: [],
       historyLoaded: false,
     };
     setChats(prevChats => [...prevChats, newChat]);
     setCurrentChat(newChat);
     router?.push(`/chat/${newChat.id}`);
-  }, [chats, router]);
+    return newChat; // Return the new chat
+  }, [chats, router, dominationField]);
 
   const deleteChat = useCallback((chatId: string) => {
     setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
@@ -69,6 +71,7 @@ export const useChatState = () => {
       id: uuidv4(),
       role: 'user',
       content: message,
+      dominationField,
     };
 
     addMessageToCurrentChat(userMessage);
@@ -76,14 +79,32 @@ export const useChatState = () => {
     setError(null);
 
     try {
+      const messages = [
+        { role: "system", content: "You are a helpful assistant." },
+        ...currentChat.messages.map(msg => ({ role: msg.role, content: msg.content })),
+        { role: "user", content: message }
+      ];
+
+      let fullResponse = '';
       await answerQuestion(
-        message,
-        (token) => setStreamingMessage(prev => prev + token),
-        currentChat.messages,
+        messages,
+        (token: string) => {
+          fullResponse += token;
+          setStreamingMessage(prev => prev + token);
+        },
         dominationField,
         currentChat.id,
         savedCustomPrompt
       );
+
+      // Add the assistant's full response to the chat
+      const assistantMessage: ChatMessage = {
+        id: uuidv4(),
+        role: 'assistant' as const,
+        dominationField: dominationField,
+        content: fullResponse,
+      };
+      addMessageToCurrentChat(assistantMessage);
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
       setError('An error occurred while processing your message.');
@@ -118,6 +139,7 @@ export const useChatState = () => {
 
   return {
     chats,
+    setChats, // Add this line
     currentChat,
     setCurrentChat,
     createNewChat,
@@ -139,5 +161,7 @@ export const useChatState = () => {
     customPrompt,
     setCustomPrompt: handleSetCustomPrompt,
     loadChatHistory,
+    model, // Add this line
+    setModel, // Add this line
   };
 };
