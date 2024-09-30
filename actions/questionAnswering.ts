@@ -126,7 +126,9 @@ export async function answerQuestion(
     const validMessages = messages.filter(msg => msg.content && msg.content.trim() !== '');
 
     const completion = await openai.chat.completions.create({
-      model: 'llama3.1:latest',
+      // model: 'llama3.1:latest',
+      // model: 'dolphin-llama3:8b',
+      model: 'dolphin-llama3:70b',
       messages: [
         { role: 'system', content: 'You are a helpful assistant.' },
         ...validMessages.map(msg => ({
@@ -146,9 +148,6 @@ export async function answerQuestion(
       if (token) {
         onToken(token);
         fullResponse += token;
-        
-        // Remove the delay to allow for smoother output
-        // await new Promise(resolve => setTimeout(resolve, 10));
       }
       
       if (chunk.choices[0]?.finish_reason) {
@@ -166,7 +165,7 @@ export async function answerQuestion(
     // Save the structured response
     await storeChatMessage(chatId, 'assistant', structuredResponse, dominationField);
 
-    return structuredResponse;
+    // return structuredResponse;
   } catch (error) {
     console.error('Error in answerQuestion:', error);
     await onToken('Sorry, I encountered an error while processing your question.');

@@ -8,42 +8,42 @@ import { Send } from 'react-feather';
 import { ChatContextType, Chat } from '@/types/chat';
 import { useRouter } from 'next/navigation';
 
-interface MessageInputProps {
-  setStreamingMessage?: (message: string) => void;
-}
-
-const MessageInput: React.FC<MessageInputProps> = ({ setStreamingMessage: updateStreamingMessage }) => {
+const MessageInput: React.FC = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [streamingMessage, setStreamingMessage] = useState('');
   const { 
     updateCurrentChat,
     isLoading, 
     setIsLoading, 
     currentChat, 
     setCurrentChat,
-    dominationField,
+    dominationField, 
     customPrompt,
-    createNewChat
+    createNewChat,
+    setStreamingMessage
   } = useChat() as unknown as ChatContextType;
   const router = useRouter();
 
   const handleSend = async () => {
     if (!message.trim() || isLoading) {
-      setError('Cannot send empty message or while still loading');
+      console.error('Cannot send message: message is empty or still loading');
       return;
     }
 
     if (!dominationField) {
-      setError('Please select a domination field before sending a message');
+      console.error('Cannot send message: domination field is not set');
       return;
     }
 
-    let chatToUse = currentChat || createNewChat();
+    let chatToUse = currentChat;
+
+    if (!chatToUse) {
+      chatToUse = createNewChat();
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      role: "user",
+      role: "user" as const,
       content: message,
       dominationField,
     };
@@ -59,9 +59,8 @@ const MessageInput: React.FC<MessageInputProps> = ({ setStreamingMessage: update
     });
 
     setMessage("");
-    setStreamingMessage('');
-    setIsLoading(true);
-    setError(null);
+    setStreamingMessage?.('');
+    setIsLoading?.(true);
 
     try {
       const response = await fetch('/api/answer', {
@@ -71,7 +70,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ setStreamingMessage: update
           message: userMessage.content, 
           dominationField,
           customPrompt,
-          chatId: chatToUse.id
+          chatId: chatToUse?.id ?? ''
         }),
       });
 
@@ -95,7 +94,9 @@ const MessageInput: React.FC<MessageInputProps> = ({ setStreamingMessage: update
             try {
               const { token } = JSON.parse(line.slice(5));
               streamedResponse += token;
+              console.log('Updated streamedResponse:', streamedResponse);
               setStreamingMessage(streamedResponse);
+              console.log('Received token:', token);
             } catch (parseError) {
               console.error('Error parsing SSE message:', parseError);
             }
@@ -105,7 +106,7 @@ const MessageInput: React.FC<MessageInputProps> = ({ setStreamingMessage: update
 
       const assistantMessage: ChatMessage = {
         id: Date.now().toString(),
-        role: 'assistant',
+        role: 'assistant' as const,
         content: streamedResponse,
         dominationField,
       };
@@ -121,10 +122,11 @@ const MessageInput: React.FC<MessageInputProps> = ({ setStreamingMessage: update
       });
 
     } catch (error) {
-      console.error('Error in handleSend:', error);
-      setError('An error occurred while processing your message. Please try again.');
+      console.error('Error:', error);
+      setError('An error occurred while processing your request.');
     } finally {
-      setIsLoading(false);
+      setIsLoading?.(false);
+      setStreamingMessage?.('');
     }
   };
 

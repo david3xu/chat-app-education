@@ -75,8 +75,11 @@ export const useChatState = () => {
     };
 
     addMessageToCurrentChat(userMessage);
+    await storeChatMessage(currentChat.id, 'user', message, dominationField);
+
     setIsLoading(true);
     setError(null);
+    setStreamingMessage('');
 
     try {
       const messages = [
@@ -97,14 +100,14 @@ export const useChatState = () => {
         savedCustomPrompt
       );
 
-      // Add the assistant's full response to the chat
       const assistantMessage: ChatMessage = {
         id: uuidv4(),
-        role: 'assistant' as const,
-        dominationField: dominationField,
+        role: 'assistant',
         content: fullResponse,
+        dominationField,
       };
       addMessageToCurrentChat(assistantMessage);
+      await storeChatMessage(currentChat.id, 'assistant', fullResponse, dominationField);
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
       setError('An error occurred while processing your message.');

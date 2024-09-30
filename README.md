@@ -220,6 +220,18 @@ It uses modern React practices like hooks and context for state management.
 There's functionality for uploading and processing markdown files.
 The UI is styled using Tailwind CSS and includes some custom components.
 
+
+
+# solution for the streaming message display
+The issue is that you have two sources of truth for streamingMessage: one in the local state of app/page.tsx and another in the ChatContext. The MessageInput component is updating the ChatContext version, while ChatArea is trying to read from the same ChatContext version.
+To fix this:
+Remove the local streamingMessage state from app/page.tsx.
+Update ChatArea and MessageInput to only use the streamingMessage from ChatContext.
+Remove the streamingMessage prop from both components in app/page.tsx.
+
+
+
+
 # add history in chat 
 # add multimodel
 # add customized prompt 

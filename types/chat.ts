@@ -20,6 +20,7 @@ export interface ChatContextType {
   isLoading: boolean;
   setCurrentChat: React.Dispatch<React.SetStateAction<Chat | null>>;
   isLoadingHistory: boolean;
+  setIsLoadingHistory: React.Dispatch<React.SetStateAction<boolean>>;
   error: string | null;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setError: React.Dispatch<React.SetStateAction<string | null>>;
@@ -39,6 +40,8 @@ export interface ChatContextType {
   updateCurrentChat: (updater: (prevChat: Chat | null) => Chat | null) => void;
   customPrompt: string;
   setCustomPrompt: React.Dispatch<React.SetStateAction<string>>;
+  handleSendMessage: (message: string) => void;
+  chatId: string;
 }
 
 interface UpdatedChat {

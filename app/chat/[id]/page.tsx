@@ -7,14 +7,13 @@ import SharedLayout from '@/components/SharedLayout';
 import ChatArea from '@/components/ChatArea';
 import MessageInput from '@/components/MessageInput';
 import { fetchChatHistory } from '@/actions/chatHistory';
-import { Chat } from '@/types/chat';  // Add this import at the top of the file
+import { Chat } from '@/types/chat';
 
 const ChatPage = () => {
   const params = useParams();
   const id = params.id as string;
-  const { loadChatHistory, setCurrentChat, chats } = useChat();
+  const { setCurrentChat } = useChat();
   const [isLoading, setIsLoading] = useState(true);
-  const [streamingMessage, setStreamingMessage] = useState('');
 
   useEffect(() => {
     const loadChat = async () => {
@@ -45,7 +44,7 @@ const ChatPage = () => {
     };
 
     loadChat();
-  }, [id, setCurrentChat, fetchChatHistory]);
+  }, [id, setCurrentChat]);
 
   if (isLoading) {
     return <SharedLayout><div>Loading...</div></SharedLayout>;
@@ -54,7 +53,7 @@ const ChatPage = () => {
   return (
     <SharedLayout>
       <ChatArea />
-      <MessageInput setStreamingMessage={setStreamingMessage} />
+      <MessageInput />
     </SharedLayout>
   );
 };

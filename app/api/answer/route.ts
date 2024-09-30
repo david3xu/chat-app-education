@@ -13,26 +13,40 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const history = await fetchChatHistory(chatId);
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const sendToken = async (token: string) => {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token })}\n\n`));
+        } catch (error) {
+          console.error('Error sending token:', error);
+        }
+      };
 
-  const stream = new TransformStream();
-  const writer = stream.writable.getWriter();
-
-  // Implement word-by-word streaming
-  answerQuestion(
-    [...history, { role: 'user', content: message }],
-    async (token) => {
-      await writer.write(`data: ${JSON.stringify({ token })}\n\n`);
+      try {
+        let assistantMessage = '';
+        const history = await fetchChatHistory(chatId);
+        await answerQuestion(
+          [...history, { role: 'user', content: message }],
+          async (token) => {
+            assistantMessage += token;
+            await sendToken(token);
+          },
+          dominationField,
+          chatId,
+          customPrompt
+        );
+      } catch (error) {
+        console.error('Error in route handler:', error);
+        await sendToken('An error occurred while processing your request.');
+      } finally {
+        controller.close();
+      }
     },
-    dominationField,
-    chatId,
-    customPrompt
-  ).then(() => writer.close()).catch((error) => {
-    console.error('Error in answerQuestion:', error);
-    writer.abort(error);
   });
 
-  return new Response(stream.readable, {
+  return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
