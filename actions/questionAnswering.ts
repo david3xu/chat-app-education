@@ -88,7 +88,7 @@ export async function answerQuestion(
     if (dominationField === 'Relax') {
       prompt = basePrompt + getRelaxPrompt(previousConvo, sanitizedQuery);
     } else if (dominationField === 'Email') {
-      prompt = basePrompt + getEmailPrompt(previousConvo, sanitizedQuery);
+      prompt = getEmailPrompt(previousConvo, sanitizedQuery, customPrompt);
     } else {
       const embedding = await getEmbedding(sanitizedQuery);
 
@@ -126,9 +126,9 @@ export async function answerQuestion(
     const validMessages = messages.filter(msg => msg.content && msg.content.trim() !== '');
 
     const completion = await openai.chat.completions.create({
-      // model: 'llama3.1:latest',
+      model: 'llama3.1:latest',
       // model: 'dolphin-llama3:8b',
-      model: 'dolphin-llama3:70b',
+      // model: 'dolphin-llama3:70b',
       messages: [
         { role: 'system', content: 'You are a helpful assistant.' },
         ...validMessages.map(msg => ({

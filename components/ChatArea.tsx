@@ -32,6 +32,7 @@ const ChatArea: React.FC = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   // const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastQuestionRef = useRef<HTMLDivElement>(null);
 
   // const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -65,8 +66,8 @@ const ChatArea: React.FC = () => {
   }, [loadChatHistory]);
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    if (lastQuestionRef.current) {
+      lastQuestionRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [currentChat, currentChat?.messages, streamingMessage]);
 
@@ -186,8 +187,12 @@ const ChatArea: React.FC = () => {
     );
   };
 
-  const renderUserMessage = (msg: ChatMessage) => (
-    <div key={msg.id} className="mb-4 flex justify-end">
+  const renderUserMessage = (msg: ChatMessage, isLastQuestion: boolean) => (
+    <div 
+      key={msg.id} 
+      className="mb-4 flex justify-end"
+      ref={isLastQuestion ? lastQuestionRef : null}
+    >
       <div className="p-4 rounded-lg bg-blue-600 text-white max-w-[80%] break-words">
         <div className="font-bold mb-2">You</div>
         <ReactMarkdown className="prose prose-invert max-w-none">
@@ -197,8 +202,12 @@ const ChatArea: React.FC = () => {
     </div>
   );
 
-  const renderMessage = (msg: ChatMessage) => {
-    return msg.role === "user" ? renderUserMessage(msg) : renderAssistantMessage(msg);
+  const renderMessage = (msg: ChatMessage, index: number, messages: ChatMessage[]) => {
+    const isLastQuestion = msg.role === "user" && 
+      (index === messages.length - 1 || messages[index + 1].role === "assistant");
+    return msg.role === "user" 
+      ? renderUserMessage(msg, isLastQuestion) 
+      : renderAssistantMessage(msg);
   };
 
   const renderStreamingMessage = () => (
@@ -233,9 +242,9 @@ const ChatArea: React.FC = () => {
             <div className="text-white">Loading chat history...</div>
           ) : (
             <>
-              {currentChat?.messages?.map((message, index) => (
+              {currentChat?.messages?.map((message, index, messages) => (
                 <div key={message.id || index}>
-                  {renderMessage(message)}
+                  {renderMessage(message, index, messages)}
                 </div>
               ))}
               {isLoading && (

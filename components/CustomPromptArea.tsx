@@ -9,11 +9,16 @@ const CustomPromptArea: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
-    setLocalPrompt(customPrompt);
-  }, [customPrompt]);
+    const savedPrompt = localStorage.getItem('customPrompt');
+    if (savedPrompt) {
+      setLocalPrompt(savedPrompt);
+      setCustomPrompt(savedPrompt);
+    }
+  }, [setCustomPrompt]);
 
   const handleSavePrompt = () => {
     setCustomPrompt(localPrompt);
+    localStorage.setItem('customPrompt', localPrompt);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000); // Hide message after 3 seconds
   };
