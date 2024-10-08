@@ -5,7 +5,34 @@ import { answerQuestion } from '@/actions/questionAnswering';
 import { v4 as uuidv4 } from 'uuid';
 import { useRouter } from 'next/navigation'; // Change this to use the new App Router
 
-export type ChatStateType = ReturnType<typeof useChatState>;
+// Update the ChatStateType to include all properties and methods
+export type ChatStateType = {
+  chats: Chat[];
+  setChats: React.Dispatch<React.SetStateAction<Chat[]>>;
+  currentChat: Chat | null;
+  setCurrentChat: React.Dispatch<React.SetStateAction<Chat | null>>;
+  createNewChat: () => Chat;
+  deleteChat: (chatId: string) => void;
+  addMessageToCurrentChat: (message: ChatMessage) => void;
+  streamingMessage: string;
+  setStreamingMessage: React.Dispatch<React.SetStateAction<string>>;
+  updateCurrentChat: (updater: (prevChat: Chat | null) => Chat | null) => void;
+  isLoading: boolean;
+  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  isLoadingHistory: boolean;
+  error: string | null;
+  setError: React.Dispatch<React.SetStateAction<string | null>>;
+  handleSendMessage: (message: string) => Promise<void>;
+  dominationField: string;
+  setDominationField: React.Dispatch<React.SetStateAction<string>>;
+  savedCustomPrompt: string;
+  setSavedCustomPrompt: React.Dispatch<React.SetStateAction<string>>;
+  customPrompt: string;
+  setCustomPrompt: (newPrompt: string) => void;
+  loadChatHistory: (chatId: string) => Promise<void>;
+  model: string;
+  setModel: React.Dispatch<React.SetStateAction<string>>;
+};
 
 export const useChatState = () => {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -32,7 +59,7 @@ export const useChatState = () => {
     setChats(prevChats => [...prevChats, newChat]);
     setCurrentChat(newChat);
     router?.push(`/chat/${newChat.id}`);
-    return newChat; // Return the new chat
+    return newChat;
   }, [chats, router, dominationField]);
 
   const deleteChat = useCallback((chatId: string) => {

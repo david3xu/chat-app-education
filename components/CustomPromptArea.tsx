@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 
 const CustomPromptArea: React.FC = () => {
   const [localPrompt, setLocalPrompt] = useState('');
-  const { customPrompt, setCustomPrompt } = useChat() as { customPrompt: string, setCustomPrompt: (prompt: string) => void };
+  const { customPrompt, setCustomPrompt } = useChat();
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {

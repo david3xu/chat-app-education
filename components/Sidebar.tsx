@@ -10,18 +10,18 @@ import CustomPromptArea from './CustomPromptArea';
 import { ChatContextType } from '@/types/chat';
 
 const Sidebar: React.FC = () => {
-  const { 
-    chats = [], 
-    currentChat, 
-    setCurrentChat, 
-    createNewChat, 
-    deleteChat, 
-    dominationField, 
-    setDominationField, 
-    loadChatHistory, 
-    customPrompt, 
-    setCustomPrompt 
-  } = useChat() as unknown as ChatContextType;
+  const {
+    chats,
+    currentChat,
+    setCurrentChat,
+    createNewChat,
+    deleteChat,
+    dominationField,
+    setDominationField,
+    loadChatHistory,
+    customPrompt,
+    setCustomPrompt
+  } = useChat();
 
   const [sidebarVisible, setSidebarVisible] = useState(false);
 
@@ -39,6 +39,18 @@ const Sidebar: React.FC = () => {
       setDominationField('Science');
     }
   }, [dominationField, setDominationField]);
+
+  const handleCreateNewChat = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (createNewChat) {
+      const newChat = createNewChat();
+      if (newChat && setCurrentChat) {
+        setCurrentChat(newChat);
+      }
+    }
+  };
+
+  const isCreateNewChatEnabled = true; // or some condition
 
   if (!sidebarVisible) return null;
 
@@ -71,9 +83,9 @@ const Sidebar: React.FC = () => {
             </SelectContent>
           </Select>
         )}
-        {createNewChat && (
+        {isCreateNewChatEnabled && (
           <button
-            onClick={createNewChat}
+            onClick={handleCreateNewChat}
             className="text-white bg-blue-500 p-2 rounded-full hover:bg-blue-600 w-full"
           >
             <Plus size={20} className="inline mr-2" /> New Chat

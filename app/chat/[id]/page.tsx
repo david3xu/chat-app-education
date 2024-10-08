@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useChat } from '@/components/ChatContext';
 import SharedLayout from '@/components/SharedLayout';
 import ChatArea from '@/components/ChatArea';
@@ -11,8 +11,9 @@ import { Chat } from '@/types/chat';
 
 const ChatPage = () => {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
-  const { setCurrentChat } = useChat();
+  const { setCurrentChat, currentChat, loadChatHistory } = useChat();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -45,6 +46,12 @@ const ChatPage = () => {
 
     loadChat();
   }, [id, setCurrentChat]);
+
+  useEffect(() => {
+    if (currentChat && currentChat.id !== id) {
+      router.push(`/chat/${currentChat.id}`);
+    }
+  }, [currentChat, id, router]);
 
   if (isLoading) {
     return <SharedLayout><div>Loading...</div></SharedLayout>;

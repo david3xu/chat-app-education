@@ -11,17 +11,18 @@ import { useRouter } from 'next/navigation';
 const MessageInput: React.FC = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const { 
+  const {
     updateCurrentChat,
-    isLoading, 
-    setIsLoading, 
-    currentChat, 
+    isLoading,
+    setIsLoading,
+    currentChat,
     setCurrentChat,
-    dominationField, 
+    dominationField,
     customPrompt,
     createNewChat,
-    setStreamingMessage
-  } = useChat() as unknown as ChatContextType;
+    setStreamingMessage,
+    handleSendMessage
+  } = useChat();
   const router = useRouter();
 
   const handleSend = async () => {

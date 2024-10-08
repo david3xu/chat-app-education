@@ -126,9 +126,11 @@ export async function answerQuestion(
     const validMessages = messages.filter(msg => msg.content && msg.content.trim() !== '');
 
     const completion = await openai.chat.completions.create({
-      model: 'llama3.1:latest',
+      // model: 'llama3.1:latest',
       // model: 'dolphin-llama3:8b',
       // model: 'dolphin-llama3:70b',
+      model: 'deepseek-coder-v2',
+      // model: 'codellama:13b',
       messages: [
         { role: 'system', content: 'You are a helpful assistant.' },
         ...validMessages.map(msg => ({

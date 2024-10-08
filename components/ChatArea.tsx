@@ -12,22 +12,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import ReactMarkdown from 'react-markdown';
 import { ChatContextType } from '@/types/chat';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 
 const ChatArea: React.FC = () => {
+  const router = useRouter();
+  const { chatId } = useParams();
   const {
-    currentChat, 
-    streamingMessage, 
+    currentChat,
+    streamingMessage,
     setStreamingMessage,
-    isLoading, 
+    isLoading,
     setIsLoading,
-    updateCurrentChat, 
+    updateCurrentChat,
     error,
     setError,
     createNewChat,
-    chatId,
     dominationField,
-    savedCustomPrompt
-  } = useChat() as unknown as ChatContextType;
+    savedCustomPrompt,
+    loadChatHistory: loadChatHistoryFunc
+  } = useChat();
   const [showUploader, setShowUploader] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   // const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -92,6 +96,12 @@ const ChatArea: React.FC = () => {
         });
     }
   }, [currentChat, updateCurrentChat, setError]);
+
+  useEffect(() => {
+    if (currentChat && currentChat.id !== chatId) {
+      router.push(`/chat/${currentChat.id}`);
+    }
+  }, [currentChat, chatId, router]);
 
   const addMessageToCurrentChat = (message: ChatMessage) => {
     updateCurrentChat(prevChat => {

@@ -15,24 +15,42 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <ChatContext.Provider value={{
-      ...chatState,
-    }}>
+    <ChatContext.Provider value={chatState}>
       {children}
     </ChatContext.Provider>
   );
 };
 
-export const useChat = () => {
+export const useChat = (): ChatStateType => {
   const context = useContext(ChatContext);
   if (context === undefined) {
+    // Return a default object that matches ChatStateType
     return {
       chats: [],
+      setChats: () => {},
       currentChat: null,
       setCurrentChat: () => {},
+      createNewChat: () => ({ id: '', name: '', dominationField: '', messages: [], historyLoaded: false }),
+      deleteChat: () => {},
+      addMessageToCurrentChat: () => {},
+      streamingMessage: '',
+      setStreamingMessage: () => {},
       updateCurrentChat: () => {},
+      isLoading: false,
+      setIsLoading: () => {},
+      isLoadingHistory: false,
+      error: null,
+      setError: () => {},
+      handleSendMessage: async () => {},
+      dominationField: '',
+      setDominationField: () => {},
+      savedCustomPrompt: '',
+      setSavedCustomPrompt: () => {},
+      customPrompt: '',
+      setCustomPrompt: () => {},
       loadChatHistory: async () => {},
-      // Add other properties with default values
+      model: '',
+      setModel: () => {},
     };
   }
   return context;
