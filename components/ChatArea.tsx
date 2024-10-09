@@ -7,13 +7,12 @@ import { MarkdownUploader } from "@/components/MarkdownUploader";
 import { fetchChatHistory } from '@/actions/chatHistory';
 import { answerQuestion } from '@/actions/questionAnswering';
 import { v4 as uuidv4 } from 'uuid';
-import { ChatMessage, Chat } from '@/types/chat';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChatMessage } from '@/types/chat';
 import ReactMarkdown from 'react-markdown';
-import { ChatContextType } from '@/types/chat';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRouter } from 'next/navigation';
 import { useParams } from 'next/navigation';
+import Image from 'next/image'; // Add this import
 
 const ChatArea: React.FC = () => {
   const router = useRouter();
@@ -27,22 +26,29 @@ const ChatArea: React.FC = () => {
     updateCurrentChat,
     error,
     setError,
-    createNewChat,
     dominationField,
     savedCustomPrompt,
-    loadChatHistory: loadChatHistoryFunc
   } = useChat();
   const [showUploader, setShowUploader] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  // const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastQuestionRef = useRef<HTMLDivElement>(null);
 
-  // const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const MAX_RETRIES = 3;
 
-  // const [streamedResponse, setStreamedResponse] = useState('');
+  const [codeBlocks, setCodeBlocks] = useState<string[]>([]);
+
+  // Add this useEffect to extract code blocks
+  useEffect(() => {
+    if (currentChat?.messages) {
+      const lastMessage = currentChat.messages[currentChat.messages.length - 1];
+      if (lastMessage && lastMessage.role === 'assistant') {
+        const extractedCodeBlocks = lastMessage.content.match(/```[\s\S]*?```/g) || [];
+        setCodeBlocks(extractedCodeBlocks.map(block => block.replace(/```/g, '').trim()));
+      }
+    }
+  }, [currentChat?.messages]);
 
   const loadChatHistory = useCallback(() => {
     if (currentChat && !currentChat.historyLoaded && retryCount < MAX_RETRIES) {
@@ -136,7 +142,6 @@ const ChatArea: React.FC = () => {
         savedCustomPrompt
       );
 
-      // After streaming is complete, add the full message to the chat
       const assistantMessage: ChatMessage = {
         id: uuidv4(),
         role: 'assistant',
@@ -153,31 +158,29 @@ const ChatArea: React.FC = () => {
   };
 
   const renderAssistantMessage = (msg: ChatMessage) => {
-    const sections = msg.content.split('\n\n');
-    const codeBlocks = msg.content.match(/```[\s\S]*?```/g) || [];
-
     return (
       <div className="mb-4 flex justify-start">
         <div className="p-4 rounded-lg bg-green-600 text-white max-w-[80%] w-full">
           <div className="font-bold mb-2">Assistant</div>
-          <Tabs defaultValue="plain" className="w-full">
+          <Tabs defaultValue="markdown" className="w-full">
             <TabsList>
-              <TabsTrigger value="plain">Plain Text</TabsTrigger>
               <TabsTrigger value="markdown">Markdown</TabsTrigger>
               <TabsTrigger value="code">Code</TabsTrigger>
             </TabsList>
-            <TabsContent value="plain">
-              <pre className="whitespace-pre-wrap">{msg.content}</pre>
-            </TabsContent>
             <TabsContent value="markdown">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {sections.map((section, index) => (
-                  <div key={index} className="bg-green-700 p-4 rounded-lg">
-                    <ReactMarkdown className="prose prose-invert max-w-none break-words">
-                      {section}
-                    </ReactMarkdown>
-                  </div>
-                ))}
+              <div className="bg-green-700 p-4 rounded-lg">
+                <ReactMarkdown 
+                  className="prose prose-invert max-w-none break-words"
+                  components={{
+                    h1: ({node, ...props}) => <h1 className="text-2xl font-bold mb-2" {...props} />,
+                    h2: ({node, ...props}) => <h2 className="text-xl font-semibold mb-2" {...props} />,
+                    ul: ({node, ...props}) => <ul className="list-disc list-inside mb-2" {...props} />,
+                    li: ({node, ...props}) => <li className="mb-1" {...props} />,
+                    p: ({node, ...props}) => <p className="mb-2" {...props} />,
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
               </div>
             </TabsContent>
             <TabsContent value="code">
@@ -188,7 +191,7 @@ const ChatArea: React.FC = () => {
                   </pre>
                 ))
               ) : (
-                <p>No code blocks found in this message.</p>
+                <p>No code blocks to display.</p>
               )}
             </TabsContent>
           </Tabs>
@@ -205,6 +208,17 @@ const ChatArea: React.FC = () => {
     >
       <div className="p-4 rounded-lg bg-blue-600 text-white max-w-[80%] break-words">
         <div className="font-bold mb-2">You</div>
+        {msg.image && (
+          <div className="mb-2">
+            <Image
+              src={msg.image}
+              alt="User uploaded image"
+              width={200}
+              height={200}
+              className="rounded-lg"
+            />
+          </div>
+        )}
         <ReactMarkdown className="prose prose-invert max-w-none">
           {msg.content}
         </ReactMarkdown>
@@ -253,9 +267,9 @@ const ChatArea: React.FC = () => {
           ) : (
             <>
               {currentChat?.messages?.map((message, index, messages) => (
-                <div key={message.id || index}>
+                <React.Fragment key={message.id || index}>
                   {renderMessage(message, index, messages)}
-                </div>
+                </React.Fragment>
               ))}
               {isLoading && (
                 <div className="flex justify-start items-center mb-4">
@@ -272,11 +286,6 @@ const ChatArea: React.FC = () => {
                 </div>
               )}
               <div ref={messagesEndRef} />
-              {error && (
-                <Button onClick={loadChatHistory} disabled={isLoadingHistory || retryCount >= MAX_RETRIES}>
-                  Retry Loading History
-                </Button>
-              )}
             </>
           )}
         </div>

@@ -3,6 +3,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   dominationField: string;
+  image?: string;
+  code?: string;
 }
 
 export interface Chat {
@@ -12,6 +14,7 @@ export interface Chat {
   historyLoaded: boolean; // Change this line
   dominationField: string;
   customPrompt?: string;
+  codeBlocks?: string[];
 }
 
 export interface ChatContextType {
@@ -50,6 +53,7 @@ interface UpdatedChat {
   historyLoaded: boolean;
   name?: string;
   dominationField: string;
+  customPrompt?: string;
 }
 
 export interface Message {

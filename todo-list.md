@@ -237,6 +237,15 @@ The chat history will load correctly when navigating back to a chat.
 4. The custom prompt will also be persisted.
 Make sure to update your routing configuration to handle the /chat/[chatId] route if you haven't already done so.
 
+# add image and multimodal 
+
+
+
+
+
+# add search in the code 
+
+
 
 # add history in chat 
 # add multimodel

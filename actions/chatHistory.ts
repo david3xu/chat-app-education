@@ -20,20 +20,32 @@ export async function fetchChatHistory(chatId: string): Promise<ChatMessage[]> {
   }));
 }
 
-export async function storeChatMessage(chatId: string, role: 'user' | 'assistant', content: string, dominationField: string) {
+export async function storeChatMessage(
+  chatId: string, 
+  role: 'user' | 'assistant', 
+  content: string, 
+  dominationField: string,
+  imageFile?: File
+) {
   if (!chatId) {
     console.error('Error in storeChatMessage: chatId is null or undefined');
     throw new Error('chatId is required');
   }
   try {
     console.log(`Storing message: chatId=${chatId}, role=${role}, content=${content}, dominationField=${dominationField}`);
+    let imageUrl;
+    if (imageFile) {
+      imageUrl = await uploadImage(imageFile);
+    }
+
     const { error } = await supabase
       .from('chat_history')
       .insert({ 
         chat_id: chatId, 
         [`${role}_content`]: content,
         [`${role}_role`]: role,
-        domination_field: dominationField 
+        domination_field: dominationField,
+        image_url: imageUrl
       });
 
     if (error) throw error;
@@ -43,14 +55,28 @@ export async function storeChatMessage(chatId: string, role: 'user' | 'assistant
   }
 }
 
+async function uploadImage(file: File): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from('chat-images')
+    .upload(`${Date.now()}-${file.name}`, file);
+
+  if (error) throw error;
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('chat-images')
+    .getPublicUrl(data.path);
+
+  return publicUrl;
+}
+
 export async function handleSendMessage(
-  message: string, 
-  currentChat: Chat, 
-  addMessageToCurrentChat: (message: ChatMessage) => void, 
-  setIsLoading: (isLoading: boolean) => void, 
-  setError: (error: string | null) => void, 
-  setStreamingMessage: (updater: (prev: string) => string) => void, 
-  dominationField: string
+  message: string,
+  imageFile: File | undefined,
+  dominationField: string,
+  customPrompt: string | undefined,
+  chatId: string,
+  currentMessages: ChatMessage[],
+  historyLoaded: boolean
 ) {
   if (!dominationField) return;
   
@@ -59,18 +85,15 @@ export async function handleSendMessage(
     role: 'user',
     content: message,
     dominationField,
+    image: imageFile ? URL.createObjectURL(imageFile) : undefined,
   };
 
-  addMessageToCurrentChat(userMessage);
-  await storeChatMessage(currentChat.id, 'user', message, dominationField);
-
-  setIsLoading(true);
-  setError(null);
+  await storeChatMessage(chatId, 'user', message, dominationField, imageFile);
 
   try {
     const messages = [
       { role: "system", content: "You are a helpful assistant." },
-      ...currentChat.messages.map((msg: ChatMessage) => ({ role: msg.role, content: msg.content })),
+      ...currentMessages.map((msg: ChatMessage) => ({ role: msg.role, content: msg.content })),
       { role: "user", content: message }
     ];
 
@@ -79,11 +102,12 @@ export async function handleSendMessage(
       messages,
       async (token) => {
         fullResponse += token;
-        setStreamingMessage((prev) => prev + token);
+        // Note: We're not using setStreamingMessage here as it's not available in this context
       },
       dominationField,
-      currentChat.id,
-      currentChat.customPrompt ?? undefined
+      chatId,
+      customPrompt,
+      imageFile
     );
 
     const assistantMessage: ChatMessage = {
@@ -92,14 +116,12 @@ export async function handleSendMessage(
       content: fullResponse,
       dominationField,
     };
-    addMessageToCurrentChat(assistantMessage);
-    await storeChatMessage(currentChat.id, 'assistant', fullResponse, dominationField);
+    await storeChatMessage(chatId, 'assistant', fullResponse, dominationField);
+
+    return { userMessage, assistantMessage };
   } catch (error) {
     console.error('Error in handleSendMessage:', error);
-    setError('An error occurred while processing your message.');
-  } finally {
-    setIsLoading(false);
-    setStreamingMessage(() => '');
+    throw error;
   }
 }
 

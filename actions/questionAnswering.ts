@@ -1,11 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import { storeChatMessage } from './chatHistory';
-import { ChatMessage } from '@/types/chat';
 import { getRelaxPrompt, getDocumentPrompt, getEmailPrompt } from '@/lib/prompts';
-import { OpenAIStream } from 'ai';
+import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
 
-const OLLAMA_SERVER_URL = 'http://localhost:11434'
+const OLLAMA_SERVER_URL = process.env.NEXT_PUBLIC_OLLAMA_SERVER_URL || 'http://localhost:11434'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || ''
@@ -21,6 +20,9 @@ const openai = new OpenAI({
   apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
   dangerouslyAllowBrowser: true
 })
+
+// Add this line to specify the model
+const MODEL_NAME = "deepseek-coder-v2:latest"
 
 async function getEmbedding(query: string) {
   const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ollama`, {
@@ -60,18 +62,22 @@ function structureResponse(content: string): string {
 }
 
 export async function answerQuestion(
-  messages: { role: string; content: string }[], 
+  messages: { role: string; content: string | { type: string; text?: string; image_url?: { url: string } }[] }[], 
   onToken: (token: string) => void, 
   dominationField: string, 
   chatId: string, 
-  customPrompt?: string
+  customPrompt?: string,
+  imageFile?: File
 ) {
   if (!dominationField) throw new Error('Domination field is required');
   try {
-    const sanitizedQuery = messages[messages.length - 1].content.trim().replace(/[\r\n]+/g, ' ').substring(0, 500);
+    let lastMessage = messages[messages.length - 1].content;
+    const sanitizedQuery = typeof lastMessage === 'string' 
+      ? lastMessage.trim().replace(/[\r\n]+/g, ' ').substring(0, 500)
+      : lastMessage.find(item => item.type === 'text')?.text || '';
 
     let previousConvo = messages.slice(0, -1).map(msg => 
-      `${msg.role.toUpperCase()}: ${msg.content}`
+      `${msg.role.toUpperCase()}: ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}`
     ).join('\n');
 
     let prompt;
@@ -123,22 +129,36 @@ export async function answerQuestion(
     // prompt += `\n\nPrevious conversation:\n${previousConvo}\n\nCurrent question: ${sanitizedQuery}`;
 
     // Validate messages before sending to OpenAI API
-    const validMessages = messages.filter(msg => msg.content && msg.content.trim() !== '');
+    const validMessages = messages.filter(msg => msg.content && (typeof msg.content === 'string' ? msg.content.trim() !== '' : true));
+
+    let apiMessages = [
+      { role: 'system', content: 'You are a helpful assistant.' },
+      ...validMessages.map(msg => ({
+        role: msg.role as 'system' | 'user' | 'assistant',
+        content: msg.content
+      })),
+      { role: 'user', content: prompt }
+    ];
+
+    if (imageFile) {
+      const base64Image = await handleImageUpload(imageFile);
+      apiMessages.push({
+        role: 'user',
+        content: [
+          { type: 'text', text: sanitizedQuery },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:image/jpeg;base64,${base64Image}`
+            }
+          }
+        ]
+      });
+    }
 
     const completion = await openai.chat.completions.create({
-      // model: 'llama3.1:latest',
-      // model: 'dolphin-llama3:8b',
-      // model: 'dolphin-llama3:70b',
-      model: 'deepseek-coder-v2',
-      // model: 'codellama:13b',
-      messages: [
-        { role: 'system', content: 'You are a helpful assistant.' },
-        ...validMessages.map(msg => ({
-          role: msg.role as 'system' | 'user' | 'assistant',
-          content: msg.content
-        })),
-        { role: 'user', content: prompt }
-      ],
+      model: MODEL_NAME,
+      messages: apiMessages as ChatCompletionMessageParam[],
       stream: true,
       max_tokens: 2048,
       temperature: 0.0,
@@ -170,6 +190,22 @@ export async function answerQuestion(
     // return structuredResponse;
   } catch (error) {
     console.error('Error in answerQuestion:', error);
-    await onToken('Sorry, I encountered an error while processing your question.');
+    if (error instanceof Error && error.message.includes('Connection error')) {
+      throw new Error('Unable to connect to the AI server. Please check your connection and try again.');
+    } else {
+      throw new Error('An error occurred while processing your question. Please try again later.');
+    }
   }
+}
+
+async function handleImageUpload(file: File): Promise<string> {
+  const reader = new FileReader()
+  return new Promise((resolve, reject) => {
+    reader.onloadend = () => {
+      const base64String = reader.result as string
+      resolve(base64String.split(',')[1]) // Remove the data URL prefix
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
 }
