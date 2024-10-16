@@ -168,7 +168,9 @@ export const useChatState = () => {
   const loadChatHistory = useCallback(async (chatId: string) => {
     setIsLoadingHistory(true);
     try {
+      console.log(`Fetching chat history for chatId: ${chatId}`);
       const history = await fetchChatHistory(chatId);
+      console.log(`Received history:`, history);
       const updatedChat: Chat = {
         id: chatId,
         messages: history,
@@ -187,7 +189,17 @@ export const useChatState = () => {
       });
     } catch (error) {
       console.error('Error loading chat history:', error);
-      setError('Failed to load chat history.');
+      setError('Failed to load chat history. Creating a new chat.');
+      // Create a new chat here instead of just setting an error
+      const newChat: Chat = {
+        id: chatId,
+        messages: [],
+        historyLoaded: true,
+        name: 'New Chat',
+        dominationField: dominationField,
+      };
+      setCurrentChat(newChat);
+      setChats(prevChats => [...prevChats, newChat]);
     } finally {
       setIsLoadingHistory(false);
     }
