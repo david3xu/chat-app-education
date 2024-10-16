@@ -21,23 +21,18 @@ const ChatPage = () => {
       if (id) {
         setIsLoading(true);
         try {
-          // Fetch the chat history directly
-          const history = await fetchChatHistory(id);
-          
-          // Create or update the current chat with the fetched history
-          const updatedChat: Chat = {
-            id,
-            messages: history,
-            historyLoaded: true,
-            name: '', // Provide a default value
-            dominationField: '', // Provide a default value
-            // Add other necessary properties from the Chat interface
-          };
-          
-          setCurrentChat(updatedChat);
+          await loadChatHistory(id);
         } catch (error) {
           console.error("Error loading chat history:", error);
-          // Handle error (e.g., show error message to user)
+          // If there's an error, create a new chat
+          const newChat: Chat = {
+            id,
+            messages: [],
+            historyLoaded: true,
+            name: 'New Chat',
+            dominationField: 'Relax',
+          };
+          setCurrentChat(newChat);
         } finally {
           setIsLoading(false);
         }
@@ -45,13 +40,7 @@ const ChatPage = () => {
     };
 
     loadChat();
-  }, [id, setCurrentChat]);
-
-  useEffect(() => {
-    if (currentChat && currentChat.id !== id) {
-      router.push(`/chat/${currentChat.id}`);
-    }
-  }, [currentChat, id, router]);
+  }, [id, setCurrentChat, loadChatHistory]);
 
   if (isLoading) {
     return <SharedLayout><div>Loading...</div></SharedLayout>;

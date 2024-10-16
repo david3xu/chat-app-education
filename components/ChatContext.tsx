@@ -2,12 +2,12 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useChatState, ChatStateType } from '@/lib/chatState';
-import { fetchChatHistory } from '@/actions/chatHistory';
 
 const ChatContext = createContext<ChatStateType | undefined>(undefined);
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isClient, setIsClient] = useState(false);
+  const [dominationField, setDominationField] = useState<string>('');
   const chatState = useChatState();
 
   useEffect(() => {
@@ -15,7 +15,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <ChatContext.Provider value={chatState}>
+    <ChatContext.Provider value={{
+      ...chatState,
+      dominationField,
+      setDominationField,
+    }}>
       {children}
     </ChatContext.Provider>
   );
@@ -30,7 +34,16 @@ export const useChat = (): ChatStateType => {
       setChats: () => {},
       currentChat: null,
       setCurrentChat: () => {},
-      createNewChat: () => ({ id: '', name: '', dominationField: '', messages: [], historyLoaded: false }),
+      createNewChat: () => {
+        const newChat = { 
+          id: Date.now().toString(), 
+          name: `New Chat ${Date.now()}`, 
+          dominationField: '', 
+          messages: [], 
+          historyLoaded: true 
+        };
+        return newChat;
+      },
       deleteChat: () => {},
       addMessageToCurrentChat: () => {},
       streamingMessage: '',

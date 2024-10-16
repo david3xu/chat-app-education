@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverActions: true,
-  },
   async rewrites() {
     return [
       {
@@ -21,9 +18,13 @@ const nextConfig = {
         ...config.resolve.fallback,
         fs: false,
         punycode: false,
+        path: false,
       };
     }
     return config;
+  },
+  images: {
+    domains: ['localhost'], // Add any other domains you need
   },
 }
 

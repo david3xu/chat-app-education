@@ -3,6 +3,7 @@ import { uploadMarkdownToSupabase, uploadFolderToSupabase } from '../lib/uploadM
 import { Button } from '@/components/ui/button';
 import { FiMenu } from 'react-icons/fi'; // Import the icon
 import { dominationFieldsData } from '../lib/data/domFields';
+import { isPdfFile } from '../lib/utils';
 
 // Add this interface at the top of your file
 interface CustomInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -26,75 +27,94 @@ export function MarkdownUploader() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFiles(Array.from(e.target.files));
-      setReminder('');
+      const selectedFiles = Array.from(e.target.files);
+      const validFiles = selectedFiles.filter(file => 
+        file.type === 'text/markdown' || 
+        file.name.toLowerCase().endsWith('.md') || 
+        isPdfFile(file)
+      );
+      setFiles(validFiles);
+      setReminder(validFiles.length < selectedFiles.length ? 'Some files were ignored. Only Markdown (.md) and PDF files are accepted.' : '');
     }
   };
 
   const handleFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFiles(Array.from(e.target.files));
-      setReminder('You have selected a folder. Please review the files and click "Upload" to proceed.');
+      const selectedFiles = Array.from(e.target.files);
+      const validFiles = selectedFiles.filter(file => file.type === 'text/markdown' || isPdfFile(file));
+      setFiles(validFiles);
+      setReminder('You have selected a folder. Only Markdown and PDF files will be processed. Please review the files and click "Upload" to proceed.');
     }
   };
 
   const handleUpload = async () => {
     if (files.length === 0) {
-      alert('Please select files or a folder');
+      setError('Please select files or a folder');
       return;
     }
 
     if (!dominationField) {
-      alert('Please select a domination field');
+      setError('Please select a domination field');
       return;
     }
 
-    console.log('MarkdownUploader: Domination Field', dominationField); // Debug log
-
     setUploading(true);
+    setError(null);
+    setUploadProgress(0);
     abortControllerRef.current = new AbortController();
-    console.log('MarkdownUploader: Starting upload'); // Debug log
 
     try {
-      let result;
       const defaultSource = source || 'default source';
       const defaultAuthor = author || 'default author';
 
-      if (files.length === 1) {
-        console.log('MarkdownUploader: Uploading single file', {
-          file: files[0],
-          source: defaultSource,
-          author: defaultAuthor,
-          dominationField, // Add dominationField to the log
-        }); // Debug log
-        result = await uploadMarkdownToSupabase(files[0], defaultSource, defaultAuthor, dominationField, abortControllerRef.current.signal);
-      } else {
-        console.log('MarkdownUploader: Uploading folder', {
-          files,
-          source: defaultSource,
-          author: defaultAuthor,
-          dominationField, // Add dominationField to the log
-        }); // Debug log
-        result = await uploadFolderToSupabase(files, defaultSource, defaultAuthor, dominationField, abortControllerRef.current.signal);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadStatus(`Processing file ${i + 1} of ${files.length}: ${file.name}`);
+
+        if (file.type === 'application/pdf') {
+          setUploadStatus(`Converting PDF to Markdown: ${file.name}`);
+          // Add a delay to ensure the status message is displayed
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        const result = await uploadMarkdownToSupabase(
+          file,
+          defaultSource,
+          defaultAuthor,
+          dominationField,
+          abortControllerRef.current.signal,
+          (progress) => {
+            setUploadProgress(progress);
+            setUploadStatus(`Uploading ${file.name}: ${progress.toFixed(2)}%`);
+          }
+        );
+
+        if (result.success) {
+          setUploadStatus(`Successfully uploaded: ${file.name}`);
+        } else {
+          throw new Error(result.error || 'Unknown error');
+        }
+
+        setUploadProgress((i + 1) / files.length * 100);
       }
 
-      if (result.success) {
-        alert(result.message);
-        setReminder(result.reminder ?? '');
-        resetForm();
-      } else {
-        throw new Error(result.error || 'Unknown error');
-      }
+      alert('All files uploaded successfully');
+      setReminder('Remember to check the uploaded content in Supabase!');
+      resetForm();
     } catch (error) {
-      console.error('MarkdownUploader: Upload failed', error); // Debug log
-      alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('MarkdownUploader: Upload failed', error);
+      setError(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setUploadStatus('Upload failed. Please try again.');
     } finally {
       setUploading(false);
+      setUploadProgress(0);
       abortControllerRef.current = null;
-      console.log('MarkdownUploader: Upload finished'); // Debug log
     }
   };
 
@@ -126,7 +146,7 @@ export function MarkdownUploader() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".md"
+        accept=".md,.pdf,text/markdown,application/pdf"
         onChange={handleFileChange}
         className="hidden"
       />
@@ -167,7 +187,19 @@ export function MarkdownUploader() {
         onChange={(e) => setSource(e.target.value)}
         className="block w-full p-2 border rounded"
       />
-      {reminder && <div className="text-red-500">{reminder}</div>}
+      {uploading && (
+        <div>
+          <div className="text-blue-500">{uploadStatus}</div>
+          <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+            <div 
+              className="bg-blue-600 h-2.5 rounded-full" 
+              style={{width: `${uploadProgress}%`}}
+            ></div>
+          </div>
+        </div>
+      )}
+      {!uploading && error && <div className="text-red-500">{error}</div>}
+      {!uploading && reminder && <div className="text-green-500">{reminder}</div>}
       {files.length > 0 && (
         <div>
           <h3>Selected Files:</h3>

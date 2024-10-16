@@ -2,10 +2,10 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useChat } from '@/components/ChatContext';
-import { Button } from "@/components/ui/button";
 import { MarkdownUploader } from "@/components/MarkdownUploader";
-import { fetchChatHistory } from '@/actions/chatHistory';
+import { fetchChatHistory, storeChatMessage } from '@/actions/chatHistory';
 import { answerQuestion } from '@/actions/questionAnswering';
+import { encodeImageToBase64 } from '@/lib/fileUtils'; // Adjust the import path as needed
 import { v4 as uuidv4 } from 'uuid';
 import { ChatMessage } from '@/types/chat';
 import ReactMarkdown from 'react-markdown';
@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRouter } from 'next/navigation';
 import { useParams } from 'next/navigation';
 import Image from 'next/image'; // Add this import
+import { ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline'; // Add this import
 
 const ChatArea: React.FC = () => {
   const router = useRouter();
@@ -31,13 +32,29 @@ const ChatArea: React.FC = () => {
   } = useChat();
   const [showUploader, setShowUploader] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastQuestionRef = useRef<HTMLDivElement>(null);
 
   const [retryCount, setRetryCount] = useState(0);
   const MAX_RETRIES = 3;
 
   const [codeBlocks, setCodeBlocks] = useState<string[]>([]);
+
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = useCallback(() => {
+    if (chatContainerRef.current) {
+      const scrollHeight = chatContainerRef.current.scrollHeight;
+      const height = chatContainerRef.current.clientHeight;
+      const maxScrollTop = scrollHeight - height;
+      chatContainerRef.current.scrollTop = maxScrollTop > 0 ? maxScrollTop : 0;
+    }
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [currentChat?.messages, streamingMessage, scrollToBottom]);
 
   // Add this useEffect to extract code blocks
   useEffect(() => {
@@ -76,12 +93,6 @@ const ChatArea: React.FC = () => {
   }, [loadChatHistory]);
 
   useEffect(() => {
-    if (lastQuestionRef.current) {
-      lastQuestionRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [currentChat, currentChat?.messages, streamingMessage]);
-
-  useEffect(() => {
     if (currentChat && !currentChat.historyLoaded) {
       setIsLoadingHistory(true);
       fetchChatHistory(currentChat.id)
@@ -109,21 +120,24 @@ const ChatArea: React.FC = () => {
     }
   }, [currentChat, chatId, router]);
 
-  const addMessageToCurrentChat = (message: ChatMessage) => {
+  const addMessageToCurrentChat = useCallback((message: ChatMessage) => {
     updateCurrentChat(prevChat => {
       if (!prevChat) return null;
-      return { ...prevChat, messages: [...prevChat.messages, message] };
+      const updatedChat = { ...prevChat, messages: [...prevChat.messages, message] };
+      return updatedChat;
     });
-  };
+  }, [updateCurrentChat]);
 
-  const handleSendMessage = async (message: string) => {
-    if (!dominationField || !currentChat) return;
-
+  const handleSendMessage = useCallback(async (message: string, imageFile?: string) => {
+    if (!currentChat) return;
+    const fieldToUse = dominationField || 'Relax';
+    
     const userMessage: ChatMessage = {
       id: uuidv4(),
       role: 'user',
       content: message,
-      dominationField,
+      dominationField: fieldToUse,
+      image: imageFile,
     };
 
     addMessageToCurrentChat(userMessage);
@@ -132,14 +146,17 @@ const ChatArea: React.FC = () => {
     setStreamingMessage('');
 
     try {
+      await storeChatMessage(currentChat.id, 'user', message, fieldToUse, imageFile);
+
       await answerQuestion(
-        [userMessage],
+        [...currentChat.messages, userMessage],
         (token) => {
           setStreamingMessage(prev => prev + token);
         },
         dominationField,
         currentChat.id,
-        savedCustomPrompt
+        savedCustomPrompt,
+        imageFile
       );
 
       const assistantMessage: ChatMessage = {
@@ -149,19 +166,54 @@ const ChatArea: React.FC = () => {
         dominationField,
       };
       addMessageToCurrentChat(assistantMessage);
+
+      // Store assistant message
+      await storeChatMessage(currentChat.id, 'assistant', streamingMessage, dominationField);
     } catch (error) {
-      console.error('Error in handleSendMessage:', error);
       setError('An error occurred while processing your message.');
     } finally {
       setIsLoading(false);
     }
+  }, [currentChat, dominationField, savedCustomPrompt, addMessageToCurrentChat, setStreamingMessage, setIsLoading, setError]);
+
+  // Add this line to use the function
+  useEffect(() => {
+    // Example usage or connection to a button/form
+    const sendButton = document.getElementById('sendButton');
+    sendButton?.addEventListener('click', () => handleSendMessage('Hello'));
+  }, []);
+
+  const copyToClipboard = (text: string, messageId: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000); // Reset after 2 seconds
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+    });
   };
+
+  const renderCopyButton = (content: string, messageId: string) => (
+    <button 
+      onClick={() => copyToClipboard(content, messageId)}
+      className="text-white hover:text-gray-200 transition-colors"
+      title="Copy message"
+    >
+      {copiedMessageId === messageId ? (
+        <CheckIcon className="h-5 w-5 text-green-400" />
+      ) : (
+        <ClipboardIcon className="h-5 w-5" />
+      )}
+    </button>
+  );
 
   const renderAssistantMessage = (msg: ChatMessage) => {
     return (
       <div className="mb-4 flex justify-start">
-        <div className="p-4 rounded-lg bg-green-600 text-white max-w-[80%] w-full">
-          <div className="font-bold mb-2">Assistant</div>
+        <div className="p-4 rounded-lg bg-green-600 text-white max-w-[80%] w-full relative">
+          <div className="font-bold mb-2 flex justify-between items-center">
+            <span>Assistant</span>
+            {renderCopyButton(msg.content, msg.id)}
+          </div>
           <Tabs defaultValue="markdown" className="w-full">
             <TabsList>
               <TabsTrigger value="markdown">Markdown</TabsTrigger>
@@ -206,8 +258,11 @@ const ChatArea: React.FC = () => {
       className="mb-4 flex justify-end"
       ref={isLastQuestion ? lastQuestionRef : null}
     >
-      <div className="p-4 rounded-lg bg-blue-600 text-white max-w-[80%] break-words">
-        <div className="font-bold mb-2">You</div>
+      <div className="p-4 rounded-lg bg-blue-600 text-white max-w-[80%] break-words relative">
+        <div className="font-bold mb-2 flex justify-between items-center">
+          <span>You</span>
+          {renderCopyButton(msg.content, msg.id)}
+        </div>
         {msg.image && (
           <div className="mb-2">
             <Image
@@ -226,12 +281,23 @@ const ChatArea: React.FC = () => {
     </div>
   );
 
+  const messageRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
   const renderMessage = (msg: ChatMessage, index: number, messages: ChatMessage[]) => {
     const isLastQuestion = msg.role === "user" && 
       (index === messages.length - 1 || messages[index + 1].role === "assistant");
-    return msg.role === "user" 
-      ? renderUserMessage(msg, isLastQuestion) 
-      : renderAssistantMessage(msg);
+    
+    return (
+      <div 
+        key={msg.id} 
+        ref={el => messageRefs.current[msg.id] = el}
+        className={`mb-4 flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+      >
+        {msg.role === "user" 
+          ? renderUserMessage(msg, isLastQuestion) 
+          : renderAssistantMessage(msg)}
+      </div>
+    );
   };
 
   const renderStreamingMessage = () => (
@@ -244,6 +310,21 @@ const ChatArea: React.FC = () => {
       </div>
     </div>
   );
+
+  const renderMessages = () => {
+    if (!currentChat || !currentChat.messages) {
+      return null;
+    }
+
+    return currentChat.messages.map((message, index) => 
+      renderMessage(message, index, currentChat.messages)
+    );
+  };
+
+  // Add this useEffect to log currentChat changes
+  useEffect(() => {
+    console.log('Current chat:', currentChat);
+  }, [currentChat]);
 
   return (
     <div className="flex flex-col h-full">
@@ -260,17 +341,16 @@ const ChatArea: React.FC = () => {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div 
+        ref={chatContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+      >
         <div className="flex-grow mb-4 bg-gray-800 rounded-lg p-4">
           {isLoadingHistory ? (
             <div className="text-white">Loading chat history...</div>
           ) : (
             <>
-              {currentChat?.messages?.map((message, index, messages) => (
-                <React.Fragment key={message.id || index}>
-                  {renderMessage(message, index, messages)}
-                </React.Fragment>
-              ))}
+              {renderMessages()}
               {isLoading && (
                 <div className="flex justify-start items-center mb-4">
                   <div className="loader mr-2"></div>
@@ -285,7 +365,6 @@ const ChatArea: React.FC = () => {
                   </div>
                 </div>
               )}
-              <div ref={messagesEndRef} />
             </>
           )}
         </div>

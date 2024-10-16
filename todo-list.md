@@ -238,9 +238,15 @@ The chat history will load correctly when navigating back to a chat.
 Make sure to update your routing configuration to handle the /chat/[chatId] route if you haven't already done so.
 
 # add image and multimodal 
+It seems that the problem might be related to how the image is being handled and passed between components.
 
+# error: 
+  Thank you for providing the context and describing the issue. It seems that the problem occurs when you start chatting without explicitly creating a new chat first. Let's analyze the code and suggest some modifications to address this issue.
+  The root cause of this problem is likely that the chat context is not properly initialized when you start typing without creating a new chat. Let's modify the MessageInput.tsx component to ensure that a new chat is created if one doesn't exist when the user sends a message.
 
+   to ensure that the user message is displayed in the chat area immediately after sending, even when starting a new conversation without explicitly creating a chat first.
 
+   Thank you for providing that additional information. The issue you're experiencing is likely related to the routing and state management when transitioning from the home page to a specific chat page. Let's make some adjustments to ensure the chat messages persist during this transition.
 
 
 # add search in the code 

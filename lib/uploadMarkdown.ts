@@ -1,17 +1,44 @@
 import { createHash } from 'crypto';
 import { supabase } from './supabase';
 import { getTextChunks, getEmbeddings } from './uploadLargeFile';
+import { convertPdfToMarkdown } from './pdfToMarkdown';
 
 const MAX_FILE_SIZE = 100 * 1024; // 100KB
 
-export async function uploadMarkdownToSupabase(file: File, source: string, author: string, dominationField: string, abortSignal: AbortSignal) {
+export async function uploadMarkdownToSupabase(
+  file: File,
+  source: string,
+  author: string,
+  dominationField: string,
+  abortSignal: AbortSignal,
+  onProgress: (progress: number) => void
+) {
   try {
-    const fileContent = await file.text();
+    let fileContent: string;
+    let fileSize = file.size;
+    onProgress(0);
+
+    if (file.type === 'application/pdf') {
+      try {
+        onProgress(10);
+        fileContent = await convertPdfToMarkdown(file);
+        fileSize = new Blob([fileContent]).size; // Get size of converted content
+        onProgress(20);
+      } catch (error) {
+        console.error('Error converting PDF:', error);
+        throw new Error(`Failed to convert PDF to Markdown: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    } else {
+      fileContent = await file.text();
+      onProgress(20);
+    }
+
     const hash = createHash('md5').update(fileContent).digest('hex');
+    onProgress(30);
 
-    console.log(`uploadMarkdownToSupabase: Uploading ${file.name} with size ${file.size} and hash ${hash}`); // Debug log
+    console.log(`uploadMarkdownToSupabase: Uploading ${file.name} with size ${fileSize} and hash ${hash}`);
 
-    if (file.size > MAX_FILE_SIZE) {
+    if (fileSize > MAX_FILE_SIZE) {
       console.log('uploadMarkdownToSupabase: File size exceeds max limit, using API route'); // Debug log
       console.log('Sending to API route:', { fileContent, source, author, domination_field: dominationField, fileName: file.name });
       const response = await fetch('/api/uploadMarkdown', {
@@ -31,6 +58,7 @@ export async function uploadMarkdownToSupabase(file: File, source: string, autho
         console.error('uploadMarkdownToSupabase: API route error', result.error); // Debug log
         throw new Error(result.error || 'Unknown error');
       }
+      onProgress(100);
     } else {
       console.log('uploadMarkdownToSupabase: File size within limit, uploading directly to Supabase');
 
@@ -62,6 +90,8 @@ export async function uploadMarkdownToSupabase(file: File, source: string, autho
           console.error('Supabase insert error:', error);
           throw error;
         }
+
+        onProgress(30 + (70 * (i + 1) / chunks.length));
       }
     }
 
@@ -71,11 +101,11 @@ export async function uploadMarkdownToSupabase(file: File, source: string, autho
       reminder: 'Remember to check the uploaded content in Supabase!'
     };
   } catch (error) {
-    console.error('uploadMarkdownToSupabase: Detailed error', error); // Debug log
-    if (error instanceof Error) {
-      return { success: false, error: error.message };
-    }
-    return { success: false, error: 'Unknown error occurred' };
+    console.error('uploadMarkdownToSupabase: Detailed error', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
   }
 }
 
@@ -84,13 +114,19 @@ export async function uploadFolderToSupabase(files: File[], source: string, auth
     let totalUploaded = 0;
     const errors = [];
 
+    let totalProgress = 0;
+    const onProgress = (progress: number) => {
+      totalProgress += progress / files.length;
+      console.log(`Total folder upload progress: ${totalProgress.toFixed(2)}%`);
+    };
+
     for (const file of files) {
       if (abortSignal.aborted) {
         throw new Error('Upload cancelled');
       }
 
       if (file.name.endsWith('.md')) {
-        const result = await uploadMarkdownToSupabase(file, source, author, dominationField, abortSignal);
+        const result = await uploadMarkdownToSupabase(file, source, author, dominationField, abortSignal, onProgress);
         if (result.success) {
           totalUploaded++;
         } else {
@@ -116,4 +152,3 @@ export async function uploadFolderToSupabase(files: File[], source: string, auth
     return { success: false, error: 'Unknown error occurred' };
   }
 }
-

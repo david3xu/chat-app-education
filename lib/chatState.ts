@@ -4,6 +4,7 @@ import { fetchChatHistory, storeChatMessage } from '@/actions/chatHistory';
 import { answerQuestion } from '@/actions/questionAnswering';
 import { v4 as uuidv4 } from 'uuid';
 import { useRouter } from 'next/navigation'; // Change this to use the new App Router
+import { encodeImageToBase64 } from '@/lib/fileUtils'; // Import the function
 
 // Update the ChatStateType to include all properties and methods
 export type ChatStateType = {
@@ -41,7 +42,7 @@ export const useChatState = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dominationField, setDominationField] = useState<string>('Science');
+  const [dominationField, setDominationField] = useState<string>('Relax'); // Change default to 'Relax'
   const [savedCustomPrompt, setSavedCustomPrompt] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
   const [model, setModel] = useState<string>('llama3.1'); // Add this line
@@ -54,7 +55,7 @@ export const useChatState = () => {
       name: `New Chat ${chats.length + 1}`,
       dominationField: dominationField,
       messages: [],
-      historyLoaded: false,
+      historyLoaded: true, // Set this to true for new chats
     };
     setChats(prevChats => [...prevChats, newChat]);
     setCurrentChat(newChat);
@@ -71,11 +72,22 @@ export const useChatState = () => {
 
   const addMessageToCurrentChat = useCallback((message: ChatMessage) => {
     setCurrentChat(prevChat => {
-      if (!prevChat) return null;
+      if (!prevChat) {
+        // If there's no current chat, create a new one
+        const newChat: Chat = {
+          id: uuidv4(),
+          name: 'New Chat',
+          dominationField: dominationField,
+          messages: [message],
+          historyLoaded: true,
+        };
+        setChats(prevChats => [...prevChats, newChat]);
+        return newChat;
+      }
       const updatedMessages = [...prevChat.messages, message];
       return { ...prevChat, messages: updatedMessages };
     });
-  }, []);
+  }, [dominationField]);
 
   const updateCurrentChat = useCallback((updater: (prevChat: Chat | null) => Chat | null) => {
     setCurrentChat(prevChat => {
@@ -86,23 +98,30 @@ export const useChatState = () => {
             chat.id === updatedChat.id ? updatedChat : chat
           )
         );
+        return updatedChat;
       }
-      return updatedChat;
+      return prevChat; // Return the previous chat if updatedChat is null
     });
   }, []);
 
-  const handleSendMessage = useCallback(async (message: string) => {
+  const handleSendMessage = useCallback(async (message: string, imageFile?: File) => {
     if (!currentChat || !dominationField) return;
+
+    let imageBase64: string | undefined;
+    if (imageFile) {
+      imageBase64 = await encodeImageToBase64(imageFile);
+    }
 
     const userMessage: ChatMessage = {
       id: uuidv4(),
       role: 'user',
       content: message,
       dominationField,
+      image: imageBase64,
     };
 
     addMessageToCurrentChat(userMessage);
-    await storeChatMessage(currentChat.id, 'user', message, dominationField);
+    await storeChatMessage(currentChat.id, 'user', message, dominationField, imageFile);
 
     setIsLoading(true);
     setError(null);
@@ -124,7 +143,8 @@ export const useChatState = () => {
         },
         dominationField,
         currentChat.id,
-        savedCustomPrompt
+        savedCustomPrompt,
+        imageBase64
       );
 
       const assistantMessage: ChatMessage = {
@@ -132,6 +152,7 @@ export const useChatState = () => {
         role: 'assistant',
         content: fullResponse,
         dominationField,
+        image: imageBase64,
       };
       addMessageToCurrentChat(assistantMessage);
       await storeChatMessage(currentChat.id, 'assistant', fullResponse, dominationField);
@@ -148,11 +169,21 @@ export const useChatState = () => {
     setIsLoadingHistory(true);
     try {
       const history = await fetchChatHistory(chatId);
-      updateCurrentChat(prevChat => {
-        if (prevChat && prevChat.id === chatId) {
-          return { ...prevChat, messages: history, historyLoaded: true };
+      const updatedChat: Chat = {
+        id: chatId,
+        messages: history,
+        historyLoaded: true,
+        name: history.length > 0 ? `Chat ${history.length}` : 'New Chat',
+        dominationField: dominationField,
+      };
+      setCurrentChat(updatedChat);
+      setChats(prevChats => {
+        const chatExists = prevChats.some(chat => chat.id === chatId);
+        if (chatExists) {
+          return prevChats.map(chat => chat.id === chatId ? updatedChat : chat);
+        } else {
+          return [...prevChats, updatedChat];
         }
-        return prevChat;
       });
     } catch (error) {
       console.error('Error loading chat history:', error);
@@ -160,7 +191,7 @@ export const useChatState = () => {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [updateCurrentChat]);
+  }, [dominationField, setCurrentChat, setChats, setError]);
 
   const handleSetCustomPrompt = useCallback((newPrompt: string) => {
     setCustomPrompt(newPrompt);

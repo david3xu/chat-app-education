@@ -1,7 +1,17 @@
-import { supabase } from './questionAnswering';
-import { Chat, ChatMessage } from '@/types/chat';
+import { encodeImage, supabase } from './questionAnswering';
+import { Chat, ChatMessage, MessageData } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { answerQuestion } from './questionAnswering';     
+// Remove this line: import { randomUUID } from 'crypto';
+
+async function encodeImageToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+}
 
 export async function fetchChatHistory(chatId: string): Promise<ChatMessage[]> {
   const { data, error } = await supabase
@@ -12,11 +22,12 @@ export async function fetchChatHistory(chatId: string): Promise<ChatMessage[]> {
 
   if (error) throw error;
 
-  return data.map(msg => ({
-    id: msg.id,
-    role: msg.user_role || msg.assistant_role,
-    content: msg.user_content || msg.assistant_content,
-    dominationField: msg.domination_field
+  return data.map((item: MessageData) => ({
+    id: item.chat_id ?? uuidv4(), // Use uuidv4() instead of randomUUID()
+    role: item.user_role ? 'user' : 'assistant',
+    content: item.user_content || item.assistant_content || '',
+    dominationField: item.domination_field,
+    image: item.image_url,
   }));
 }
 
@@ -38,15 +49,25 @@ export async function storeChatMessage(
       imageUrl = await uploadImage(imageFile);
     }
 
+    const messageData: MessageData = { 
+      chat_id: chatId, 
+      domination_field: dominationField,
+      image_url: imageUrl,
+    };
+
+    if (role === 'user') {
+      messageData.user_content = content;
+      messageData.user_role = role;
+    } else {
+      messageData.assistant_content = content;
+      messageData.assistant_role = role;
+    }
+
+    console.log('Storing message data:', messageData);
+
     const { error } = await supabase
       .from('chat_history')
-      .insert({ 
-        chat_id: chatId, 
-        [`${role}_content`]: content,
-        [`${role}_role`]: role,
-        domination_field: dominationField,
-        image_url: imageUrl
-      });
+      .insert(messageData);
 
     if (error) throw error;
   } catch (error) {
@@ -80,12 +101,17 @@ export async function handleSendMessage(
 ) {
   if (!dominationField) return;
   
+  let imageBase64: string | undefined;
+  if (imageFile) {
+    imageBase64 = await encodeImageToBase64(imageFile);
+  }
+
   const userMessage: ChatMessage = {
     id: uuidv4(),
     role: 'user',
     content: message,
     dominationField,
-    image: imageFile ? URL.createObjectURL(imageFile) : undefined,
+    image: imageBase64,
   };
 
   await storeChatMessage(chatId, 'user', message, dominationField, imageFile);
@@ -107,7 +133,7 @@ export async function handleSendMessage(
       dominationField,
       chatId,
       customPrompt,
-      imageFile
+      imageBase64
     );
 
     const assistantMessage: ChatMessage = {

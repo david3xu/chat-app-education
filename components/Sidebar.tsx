@@ -34,16 +34,17 @@ const Sidebar: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    if (setDominationField && !dominationField) {
-      setDominationField('Science');
-    }
-  }, [dominationField, setDominationField]);
+  // useEffect(() => {
+  //   if (setDominationField && !dominationField) {
+  //     // Remove the default value setting
+  //     // setDominationField('Science'); // This line is removed
+  //   }
+  // }, [dominationField, setDominationField]);
 
   const handleCreateNewChat = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (createNewChat) {
-      const newChat = createNewChat();
+      const newChat = createNewChat(); // Remove the argument
       if (newChat && setCurrentChat) {
         setCurrentChat(newChat);
       }
@@ -64,25 +65,25 @@ const Sidebar: React.FC = () => {
       </button>
       <div className="flex flex-col items-center mb-4 mt-12">
         <h2 className="text-white text-xl font-bold mb-2">Chats</h2>
-        {setDominationField && (
-          <Select 
-            onValueChange={setDominationField} 
-            value={dominationField} 
-            defaultValue={dominationFieldsData[0]?.value}
-            required
-          >
-            <SelectTrigger className="w-full mb-2">
-              <SelectValue placeholder="Select field" />
-            </SelectTrigger>
-            <SelectContent>
-              {dominationFieldsData.map((field) => (
-                <SelectItem key={field.value} value={field.value}>
-                  {field.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        
+        {/* Add the Select Domination Field dropdown here */}
+        <Select 
+          onValueChange={(value) => setDominationField && setDominationField(value)} 
+          value={dominationField || ''} 
+          defaultValue={dominationFieldsData[0]?.value}
+        >
+          <SelectTrigger className="w-full mb-2">
+            <SelectValue placeholder="Select Domination Field" />
+          </SelectTrigger>
+          <SelectContent>
+            {dominationFieldsData.map((field) => (
+              <SelectItem key={field.value} value={field.value}>
+                {field.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
         {isCreateNewChatEnabled && (
           <button
             onClick={handleCreateNewChat}

@@ -3,6 +3,7 @@
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
+    "types": ["pdfjs-dist/types/pdf.d.ts"],
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,

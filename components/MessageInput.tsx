@@ -1,18 +1,20 @@
 "use client";
 
-import { Button } from '@/components/ui/button'; // Add this import at the top of your file
+import { Button } from '@/components/ui/button';
 import React, { useState, useRef } from 'react';
 import { useChat } from '@/components/ChatContext';
 import TextareaAutosize from "react-textarea-autosize";
 import { ChatMessage } from '@/types/chat';
-import { Send } from 'react-feather';
-import { Plus } from 'react-feather';
-import Image from 'next/image'; // Add this import
+import { Send, Plus } from 'react-feather';
+import Image from 'next/image';
+import { encodeImageToBase64 } from '@/lib/fileUtils'; // Make sure this utility function exists
+import { useRouter } from 'next/navigation';
 
 const MessageInput: React.FC = () => {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const {
     updateCurrentChat,
     isLoading,
@@ -23,22 +25,30 @@ const MessageInput: React.FC = () => {
     createNewChat,
     setStreamingMessage,
   } = useChat();
+  const router = useRouter();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSend = async () => {
-    if ((!message.trim() && !selectedImage) || isLoading || !dominationField) {
+    if ((!message.trim() && !selectedImage) || isLoading) {
       return;
     }
 
-    let chatToUse = currentChat || createNewChat();
+    const fieldToUse = dominationField || 'Relax';
+    let chatToUse = currentChat;
 
+    if (!chatToUse) {
+      chatToUse = createNewChat();
+    }
+
+    const imageBase64 = selectedImage;
+    
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
       content: message,
-      dominationField,
-      image: selectedImage ? URL.createObjectURL(selectedImage) : undefined,
+      dominationField: fieldToUse,
+      image: imageBase64 || undefined,
     };
 
     updateCurrentChat(prevChat => ({
@@ -48,91 +58,122 @@ const MessageInput: React.FC = () => {
 
     setMessage("");
     setSelectedImage(null);
+    setPreviewUrl(null);
     setStreamingMessage('');
     setIsLoading(true);
 
-    try {
-      const response = await fetch('/api/answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: userMessage.content, 
-          dominationField,
-          customPrompt,
-          chatId: chatToUse?.id ?? ''
-        }),
-      });
+    const MAX_RETRIES = 3;
+    let retries = 0;
 
-      if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`);
-      }
+    while (retries < MAX_RETRIES) {
+      try {
+        const response = await fetch('/api/answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            message: message, 
+            dominationField: fieldToUse,
+            customPrompt,
+            chatId: chatToUse.id,
+            imageFile: imageBase64
+          }),
+        });
 
-      const reader = response.body!.getReader();
-      let streamedResponse = '';
+        if (!response.ok) {
+          throw new Error(`Server responded with ${response.status}: ${await response.text()}`);
+        }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        const text = new TextDecoder().decode(value);
-        const lines = text.split('\n');
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const { token } = JSON.parse(line.slice(6)); // Changed from 5 to 6
-              streamedResponse += token;
-              setStreamingMessage(streamedResponse);
-            } catch (parseError) {
-              console.error('Error parsing JSON:', parseError);
+        const reader = response.body!.getReader();
+        let streamedResponse = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+          
+          const text = new TextDecoder().decode(value);
+          const lines = text.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const jsonStr = line.slice(6).trim();
+                if (jsonStr) {
+                  const { token } = JSON.parse(jsonStr);
+                  streamedResponse += token;
+                  setStreamingMessage(streamedResponse);
+                }
+              } catch (parseError) {
+                console.error('Error parsing JSON:', parseError);
+                console.error('Problematic line:', line);
+              }
             }
           }
         }
+
+        if (streamedResponse) {
+          const assistantMessage: ChatMessage = {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: streamedResponse,
+            dominationField,
+          };
+
+          updateCurrentChat(prevChat => ({
+            ...prevChat!,
+            messages: [...prevChat!.messages, assistantMessage]
+          }));
+          break; // Success, exit the retry loop
+        } else {
+          throw new Error('No valid response received from the server');
+        }
+
+      } catch (error) {
+        console.error('Error in handleSend:', error);
+        retries++;
+        if (retries === MAX_RETRIES) {
+          setError('An error occurred while sending your message. Please try again.');
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retrying
+        }
       }
-
-      const assistantMessage: ChatMessage = {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: streamedResponse,
-        dominationField,
-      };
-
-      updateCurrentChat(prevChat => ({
-        ...prevChat!,
-        messages: [...prevChat!.messages, assistantMessage]
-      }));
-
-    } catch (error) {
-      console.error('Error:', error);
-      setError('An error occurred while processing your request.');
-    } finally {
-      setIsLoading(false);
-      setStreamingMessage('');
     }
+
+    setIsLoading(false);
+    setStreamingMessage('');
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
+    
+    // Generate a new chat address when typing
+    if (!currentChat) {
+      const newChatId = createNewChat().id;
+      router.push(`/chat/${newChatId}`);
+    }
   };
 
   const handleImageUpload = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSelectedImage(file);
+      const base64Image = await encodeImageToBase64(file);
+      setSelectedImage(base64Image);
+      setPreviewUrl(URL.createObjectURL(file));
     }
   };
 
   return (
     <div className="relative bg-gray-800 rounded-lg p-2 mt-4">
       <div className="flex flex-col">
-        {selectedImage && (
+        {previewUrl && (
           <div className="mb-2">
             <Image
-              src={URL.createObjectURL(selectedImage)}
+              src={previewUrl}
               alt="Selected image"
               width={100}
               height={100}

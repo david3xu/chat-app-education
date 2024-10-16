@@ -3,7 +3,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   dominationField: string;
-  image?: string;
+  image?: string; // Base64 encoded image
   code?: string;
 }
 
@@ -58,4 +58,14 @@ interface UpdatedChat {
 
 export interface Message {
   // ... message properties
+}
+
+export interface MessageData {
+  chat_id: string;
+  domination_field: string;
+  image_url?: string;
+  user_content?: string;
+  user_role?: string;
+  assistant_content?: string;
+  assistant_role?: string;
 }

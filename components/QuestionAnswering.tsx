@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import ReactMarkdown from 'react-markdown'
 import { answerQuestion } from '../actions/questionAnswering'
 import { fetchChatHistory } from '../actions/chatHistory'
 import { v4 as uuidv4 } from 'uuid'
 import { ChatMessage } from '../types/chat'
+import { encodeImageToBase64 } from '@/lib/fileUtils'
 
 export default function QuestionAnswering() {
   const [query, setQuery] = useState('')
@@ -12,7 +12,7 @@ export default function QuestionAnswering() {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [dominationField, setDominationField] = useState('')
   const [customPrompt, setCustomPrompt] = useState('')
-  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imageFile, setImageFile] = useState<File | string | null>(null)
 
   useEffect(() => {
     const loadChatHistory = async () => {
@@ -22,17 +22,23 @@ export default function QuestionAnswering() {
     loadChatHistory();
   }, []);
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    return () => {
+      if (imageFile) URL.revokeObjectURL(imageFile as string);
+    };
+  }, [imageFile]);
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
-      setImageFile(file)
+      const base64Image = await encodeImageToBase64(file);
+      setImageFile(base64Image);
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!dominationField) return;
-    console.log("Domination field:", dominationField);
     setLoading(true);
     let fullResponse = '';
     await answerQuestion(
@@ -44,7 +50,7 @@ export default function QuestionAnswering() {
       dominationField,
       'default-chat-id',
       customPrompt,
-      imageFile || undefined
+      imageFile ? imageFile : undefined // Ensure imageFile is used consistently
     );
     setLoading(false);
     setChatHistory(prev => [
@@ -54,6 +60,13 @@ export default function QuestionAnswering() {
     ]);
     setImageFile(null); // Clear the image file after sending
   }
+
+  const handleFileChange = async (file: File | null) => {
+    if (file) {
+      const base64Image = await encodeImageToBase64(file);
+      setImageFile(base64Image);
+    }
+  };
 
   return (
     <div>
