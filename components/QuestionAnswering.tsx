@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { answerQuestion } from '../actions/questionAnswering'
 import { fetchChatHistory } from '../actions/chatHistory'
 import { v4 as uuidv4 } from 'uuid'
-import { ChatMessage } from '../types/chat'
+import { ChatMessage } from '../lib/chat'
 import { encodeImageToBase64 } from '@/lib/fileUtils'
 
 export default function QuestionAnswering() {

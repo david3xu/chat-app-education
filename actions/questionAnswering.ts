@@ -23,9 +23,9 @@ const openai = new OpenAI({
 })
 
 // Add this line to specify the model
-const MODEL_NAME = "deepseek-coder-v2:latest"
+// const MODEL_NAME = "deepseek-coder-v2:latest"
 // const MODEL_NAME = "llava-llama3"
-// const MODEL_NAME = "llama3.1"
+const MODEL_NAME = "llama3.1"
 
 async function getEmbedding(query: string) {
   const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ollama`, {

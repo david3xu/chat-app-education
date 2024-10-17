@@ -1,8 +1,7 @@
 import { encodeImage, supabase } from './questionAnswering';
-import { Chat, ChatMessage, MessageData } from '@/types/chat';
+import { ChatMessage, MessageData } from '@/lib/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { answerQuestion } from './questionAnswering';     
-// Remove this line: import { randomUUID } from 'crypto';
 
 async function encodeImageToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -36,7 +35,8 @@ export async function storeChatMessage(
   role: 'user' | 'assistant', 
   content: string, 
   dominationField: string,
-  imageFile?: File
+  imageFile?: File,
+  chat_topic?: string
 ) {
   if (!chatId) {
     console.error('Error in storeChatMessage: chatId is null or undefined');
@@ -61,6 +61,7 @@ export async function storeChatMessage(
     } else {
       messageData.assistant_content = content;
       messageData.assistant_role = role;
+      messageData.chat_topic = chat_topic; // Only set chat_topic for assistant messages
     }
 
     console.log('Storing message data:', messageData);
@@ -124,10 +125,14 @@ export async function handleSendMessage(
     ];
 
     let fullResponse = '';
+    let chat_topic = '';
     await answerQuestion(
       messages,
       async (token) => {
         fullResponse += token;
+        if (!chat_topic && fullResponse.trim().endsWith('.')) {
+          chat_topic = fullResponse.trim();
+        }
         // Note: We're not using setStreamingMessage here as it's not available in this context
       },
       dominationField,
@@ -141,8 +146,9 @@ export async function handleSendMessage(
       role: 'assistant',
       content: fullResponse,
       dominationField,
+      chat_topic,
     };
-    await storeChatMessage(chatId, 'assistant', fullResponse, dominationField);
+    await storeChatMessage(chatId, 'assistant', fullResponse, dominationField, undefined, chat_topic);
 
     return { userMessage, assistantMessage };
   } catch (error) {
@@ -150,5 +156,3 @@ export async function handleSendMessage(
     throw error;
   }
 }
-
-

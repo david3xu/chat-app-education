@@ -6,7 +6,7 @@ import { useChat } from '@/components/ChatContext';
 import SharedLayout from '@/components/SharedLayout';
 import ChatArea from '@/components/ChatArea';
 import MessageInput from '@/components/MessageInput';
-import { Chat } from '@/types/chat';
+import { Chat } from '@/lib/chat';
 
 const ChatPage = () => {
   const params = useParams();

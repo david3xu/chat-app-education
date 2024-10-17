@@ -5,16 +5,18 @@ export interface ChatMessage {
   dominationField: string;
   image?: string; // Base64 encoded image
   code?: string;
+  chat_topic?: string;
 }
 
 export interface Chat {
   id: string;
   name: string;
   messages: ChatMessage[];
-  historyLoaded: boolean; // Change this line
+  historyLoaded: boolean;
   dominationField: string;
   customPrompt?: string;
   codeBlocks?: string[];
+  chat_topic?: string; // Add this line
 }
 
 export interface ChatContextType {
@@ -68,4 +70,5 @@ export interface MessageData {
   user_role?: string;
   assistant_content?: string;
   assistant_role?: string;
+  chat_topic?: string;
 }

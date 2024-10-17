@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Chat, ChatMessage } from '@/types/chat';
+import { Chat, ChatMessage } from '@/lib/chat';
 import { fetchChatHistory, storeChatMessage } from '@/actions/chatHistory';
 import { answerQuestion } from '@/actions/questionAnswering';
 import { v4 as uuidv4 } from 'uuid';
@@ -42,7 +42,7 @@ export const useChatState = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dominationField, setDominationField] = useState<string>('Relax'); // Change default to 'Relax'
+  const [dominationField, setDominationField] = useState<string>('Relax');
   const [savedCustomPrompt, setSavedCustomPrompt] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
   const [model, setModel] = useState<string>('llama3.1'); // Add this line
@@ -55,13 +55,13 @@ export const useChatState = () => {
       name: `New Chat ${chats.length + 1}`,
       dominationField: dominationField,
       messages: [],
-      historyLoaded: true, // Set this to true for new chats
+      historyLoaded: true,
+      chat_topic: '' // Add this line, initialize as empty string
     };
     setChats(prevChats => [...prevChats, newChat]);
     setCurrentChat(newChat);
-    router?.push(`/chat/${newChat.id}`);
     return newChat;
-  }, [chats, router, dominationField]);
+  }, [chats, dominationField]);
 
   const deleteChat = useCallback((chatId: string) => {
     setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
@@ -105,7 +105,14 @@ export const useChatState = () => {
   }, []);
 
   const handleSendMessage = useCallback(async (message: string, imageFile?: File) => {
-    if (!currentChat || !dominationField) return;
+    if (!currentChat) {
+      const newChat = createNewChat();
+      router?.push(`/chat/${newChat.id}`);
+      // Add this line to update currentChat
+      setCurrentChat(newChat);
+    }
+
+    const chatId = currentChat?.id ?? uuidv4();
 
     let imageBase64: string | undefined;
     if (imageFile) {
@@ -121,7 +128,7 @@ export const useChatState = () => {
     };
 
     addMessageToCurrentChat(userMessage);
-    await storeChatMessage(currentChat.id, 'user', message, dominationField, imageFile);
+    await storeChatMessage(chatId, 'user', message, dominationField, imageFile);
 
     setIsLoading(true);
     setError(null);
@@ -130,7 +137,7 @@ export const useChatState = () => {
     try {
       const messages = [
         { role: "system", content: "You are a helpful assistant." },
-        ...currentChat.messages.map(msg => ({ role: msg.role, content: msg.content })),
+        ...(currentChat?.messages ?? []).map(msg => ({ role: msg.role, content: msg.content })),
         { role: "user", content: message }
       ];
 
@@ -142,7 +149,7 @@ export const useChatState = () => {
           setStreamingMessage(prev => prev + token);
         },
         dominationField,
-        currentChat.id,
+        chatId,
         savedCustomPrompt,
         imageBase64
       );
@@ -155,7 +162,7 @@ export const useChatState = () => {
         image: imageBase64,
       };
       addMessageToCurrentChat(assistantMessage);
-      await storeChatMessage(currentChat.id, 'assistant', fullResponse, dominationField);
+      await storeChatMessage(chatId, 'assistant', fullResponse, dominationField);
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
       setError('An error occurred while processing your message.');
@@ -163,7 +170,7 @@ export const useChatState = () => {
       setIsLoading(false);
       setStreamingMessage('');
     }
-  }, [currentChat, dominationField, savedCustomPrompt, addMessageToCurrentChat]);
+  }, [currentChat, dominationField, savedCustomPrompt, addMessageToCurrentChat, createNewChat, router]);
 
   const loadChatHistory = useCallback(async (chatId: string) => {
     setIsLoadingHistory(true);
@@ -177,6 +184,7 @@ export const useChatState = () => {
         historyLoaded: true,
         name: history.length > 0 ? `Chat ${history.length}` : 'New Chat',
         dominationField: dominationField,
+        chat_topic: history.length > 0 ? history[0].chat_topic : '' // Add this line
       };
       setCurrentChat(updatedChat);
       setChats(prevChats => {

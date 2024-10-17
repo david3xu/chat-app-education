@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS chat_history (
     user_content TEXT,
     assistant_content TEXT,
     user_role TEXT,
-    assistant_role TEXT
+    assistant_role TEXT,
+    chat_topic TEXT
 );
 
 -- Add indexes
@@ -36,6 +37,7 @@ CREATE INDEX IF NOT EXISTS ix_chat_history_user_content ON chat_history(user_con
 CREATE INDEX IF NOT EXISTS ix_chat_history_assistant_content ON chat_history(assistant_content);
 CREATE INDEX IF NOT EXISTS ix_chat_history_user_role ON chat_history(user_role);
 CREATE INDEX IF NOT EXISTS ix_chat_history_assistant_role ON chat_history(assistant_role);
+CREATE INDEX IF NOT EXISTS ix_chat_history_chat_topic ON chat_history(chat_topic);
 
 -- Create the documents table
 CREATE TABLE IF NOT EXISTS documents (

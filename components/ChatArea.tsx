@@ -7,7 +7,7 @@ import { fetchChatHistory, storeChatMessage } from '@/actions/chatHistory';
 import { answerQuestion } from '@/actions/questionAnswering';
 import { encodeImageToBase64 } from '@/lib/fileUtils'; // Adjust the import path as needed
 import { v4 as uuidv4 } from 'uuid';
-import { ChatMessage } from '@/types/chat';
+import { ChatMessage } from '@/lib/chat';
 import ReactMarkdown from 'react-markdown';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRouter } from 'next/navigation';
@@ -146,7 +146,7 @@ const ChatArea: React.FC = () => {
     setStreamingMessage('');
 
     try {
-      await storeChatMessage(currentChat.id, 'user', message, fieldToUse, imageFile);
+      await storeChatMessage(currentChat.id, 'user', message, fieldToUse, imageFile ? new File([imageFile], 'image.png', { type: 'image/png' }) : undefined);
 
       await answerQuestion(
         [...currentChat.messages, userMessage],
@@ -290,7 +290,11 @@ const ChatArea: React.FC = () => {
     return (
       <div 
         key={msg.id} 
-        ref={el => messageRefs.current[msg.id] = el}
+        ref={el => {
+          if (el) {
+            messageRefs.current[msg.id] = el;
+          }
+        }}
         className={`mb-4 flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
       >
         {msg.role === "user" 

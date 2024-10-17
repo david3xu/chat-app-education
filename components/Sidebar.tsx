@@ -7,7 +7,7 @@ import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { dominationFieldsData } from '../lib/data/domFields';
 import CustomPromptArea from './CustomPromptArea';
-import { ChatContextType } from '@/types/chat';
+import { ChatContextType } from '@/lib/chat';
 
 const Sidebar: React.FC = () => {
   const {
@@ -69,8 +69,8 @@ const Sidebar: React.FC = () => {
         {/* Add the Select Domination Field dropdown here */}
         <Select 
           onValueChange={(value) => setDominationField && setDominationField(value)} 
-          value={dominationField || ''} 
-          defaultValue={dominationFieldsData[0]?.value}
+          value={dominationField || 'Relax'} 
+          defaultValue="Relax"
         >
           <SelectTrigger className="w-full mb-2">
             <SelectValue placeholder="Select Domination Field" />
@@ -108,6 +108,7 @@ const Sidebar: React.FC = () => {
               }}
             >
               <span className="text-white">{chat.name || `Chat ${chat.id.slice(0, 8)}`}</span>
+              <span className="text-gray-400 text-xs">{chat.id.slice(0, 8)}</span>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <button 

@@ -249,6 +249,16 @@ It seems that the problem might be related to how the image is being handled and
    Thank you for providing that additional information. The issue you're experiencing is likely related to the routing and state management when transitioning from the home page to a specific chat page. Let's make some adjustments to ensure the chat messages persist during this transition.
 
 
+# issues
+   ## 1. change the behavior so that the chat ID is created and the address is updated only when the user submits the input, rather than when they start typing.
+
+  ## 2. if the user submits input without selecting a domain field, it should automatically select "Relax" and display this in the sidebar area.
+
+  ## 3. consider whether the field names might be causing issues with storing the data
+
+  ## 4. reorganize the ChatArea.tsx file into multiple components to improve readability and maintainability.
+
+
 # add search in the code 
 
 

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import React, { useState, useRef } from 'react';
 import { useChat } from '@/components/ChatContext';
 import TextareaAutosize from "react-textarea-autosize";
-import { ChatMessage } from '@/types/chat';
+import { ChatMessage } from '@/lib/chat';
 import { Send, Plus } from 'react-feather';
 import Image from 'next/image';
 import { encodeImageToBase64 } from '@/lib/fileUtils'; // Make sure this utility function exists
@@ -24,6 +24,7 @@ const MessageInput: React.FC = () => {
     customPrompt,
     createNewChat,
     setStreamingMessage,
+    setDominationField,
   } = useChat();
   const router = useRouter();
 
@@ -34,11 +35,16 @@ const MessageInput: React.FC = () => {
       return;
     }
 
-    const fieldToUse = dominationField || 'Relax';
+    const fieldToUse = dominationField;
+    if (!dominationField) {
+      setDominationField('Relax');
+    }
+
     let chatToUse = currentChat;
 
     if (!chatToUse) {
       chatToUse = createNewChat();
+      router.push(`/chat/${chatToUse.id}`);
     }
 
     const imageBase64 = selectedImage;
@@ -146,12 +152,6 @@ const MessageInput: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessage(e.target.value);
-    
-    // Generate a new chat address when typing
-    if (!currentChat) {
-      const newChatId = createNewChat().id;
-      router.push(`/chat/${newChatId}`);
-    }
   };
 
   const handleImageUpload = () => {
