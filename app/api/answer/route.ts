@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { answerQuestion } from '@/actions/questionAnswering';
 import { fetchChatHistory } from '@/actions/chatHistory';
+import { getFullModelName } from '@/lib/modelUtils';
 
 export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
-  const { message, chatId, dominationField, customPrompt, imageFile } = await req.json();
-  
-  const fieldToUse = dominationField || 'Relax'; // Use 'Relax' as default if dominationField is not set or empty
-
   try {
+    const { message, chatId, dominationField, customPrompt, imageFile, model } = await req.json();
+    
+    console.log('API route - Received request with:', {
+      model,
+      fullModelName: getFullModelName(model),
+      chatId,
+      dominationField
+    });
+    
+    const fieldToUse = dominationField || 'Normal Chat';
+
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
@@ -25,7 +33,8 @@ export async function POST(req: NextRequest) {
           fieldToUse,
           chatId,
           customPrompt,
-          imageFile // Pass the imageFile (base64 string) to answerQuestion
+          imageFile,
+          model
         );
 
         controller.close();
@@ -41,6 +50,21 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('Error in route handler:', error);
-    return NextResponse.json({ error: 'An error occurred while processing your request.' }, { status: 500 });
+    let errorMessage = 'An error occurred while processing your request.';
+    let statusCode = 500;
+
+    if (error instanceof Error) {
+      if (error.message.includes('tsquery stack too small')) {
+        errorMessage = 'The search query is too complex. Please try a simpler query.';
+        statusCode = 400;
+      } else if (error.message.includes('Connection error')) {
+        errorMessage = 'Unable to connect to the AI server. Please check your connection and try again.';
+        statusCode = 503;
+      } else {
+        errorMessage = error.message;
+      }
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: statusCode });
   }
 }

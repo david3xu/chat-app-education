@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useChat } from '@/components/ChatContext';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2, X, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { dominationFieldsData } from '../lib/data/domFields';
 import CustomPromptArea from './CustomPromptArea';
 import { ChatContextType } from '@/lib/chat';
+import { Button } from './ui/button';
 
 const Sidebar: React.FC = () => {
   const {
@@ -34,43 +35,49 @@ const Sidebar: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // useEffect(() => {
-  //   if (setDominationField && !dominationField) {
-  //     // Remove the default value setting
-  //     // setDominationField('Science'); // This line is removed
-  //   }
-  // }, [dominationField, setDominationField]);
-
   const handleCreateNewChat = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (createNewChat) {
-      const newChat = createNewChat(); // Remove the argument
+      const newChat = createNewChat();
       if (newChat && setCurrentChat) {
         setCurrentChat(newChat);
       }
     }
   };
 
-  const isCreateNewChatEnabled = true; // or some condition
+  const isCreateNewChatEnabled = true;
 
-  if (!sidebarVisible) return null;
+  // Render the menu button when sidebar is hidden
+  if (!sidebarVisible) {
+    return (
+      <Button
+        onClick={() => setSidebarVisible(true)}
+        className="fixed top-4 left-4 p-2 bg-gray-800 text-white rounded-full hover:bg-gray-700 z-50 transition-colors"
+        size="icon"
+      >
+        <ChevronRight className="h-6 w-6" />
+      </Button>
+    );
+  }
 
   return (
     <div className="w-[300px] bg-gray-800 p-4 relative flex flex-col h-screen overflow-hidden">
-      <button
+      <Button
         onClick={() => setSidebarVisible(false)}
-        className="absolute top-4 right-4 text-white"
+        className="absolute top-4 right-4 text-white hover:bg-gray-700 transition-colors"
+        size="icon"
+        variant="ghost"
       >
-        <X size={24} />
-      </button>
+        <ChevronLeft className="h-6 w-6" />
+      </Button>
+      
       <div className="flex flex-col items-center mb-4 mt-12">
         <h2 className="text-white text-xl font-bold mb-2">Chats</h2>
         
-        {/* Add the Select Domination Field dropdown here */}
         <Select 
           onValueChange={(value) => setDominationField && setDominationField(value)} 
-          value={dominationField || 'Relax'} 
-          defaultValue="Relax"
+          value={dominationField || 'Normal Chat'} 
+          defaultValue="Normal Chat"
         >
           <SelectTrigger className="w-full mb-2">
             <SelectValue placeholder="Select Domination Field" />

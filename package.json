@@ -19,6 +19,7 @@
     "@supabase/supabase-js": "^2.45.4",
     "@types/common-tags": "^1.8.4",
     "@types/pdfjs-dist": "^2.10.378",
+    "abort-controller": "^3.0.0",
     "ai": "^3.3.28",
     "axios": "^1.7.7",
     "class-variance-authority": "^0.7.0",

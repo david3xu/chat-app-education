@@ -257,6 +257,46 @@ It seems that the problem might be related to how the image is being handled and
   ## 3. consider whether the field names might be causing issues with storing the data
 
   ## 4. reorganize the ChatArea.tsx file into multiple components to improve readability and maintainability.
+    Create a new folder called chatArea in the components directory.
+    Split the component into the following files:
+      ChatArea.tsx (main component)
+      ChatMessages.tsx (for rendering messages)
+      StreamingMessage.tsx (for rendering the streaming message)
+      CopyButton.tsx (for the copy to clipboard functionality)
+      useChat.ts (custom hook for chat-related logic)
+      types.ts (for shared types and interfaces) 
+
+
+# add an open sidebar (close sidebar) icon
+  Looking at the code, I can see that there's already a sidebar toggle functionality implemented in the Sidebar.tsx component, but we can improve its appearance and functionality. 
+
+# change "Chat Area" to Model selection dropdown menu 
+  The code is actually already set up correctly to use the selected model! The ModelSelector component is:
+  Managing model selection in the UI
+  Storing the selection in localStorage
+  Passing the selected model through the useChat context
+  And the questionAnswering.ts file is:
+  Accepting the model as a parameter
+  2. Using getFullModelName to format it correctly
+  Using it in the OpenAI API call
+
+  The model selection is being stored correctly in the state and localStorage, but it's not being properly passed through to the API call. The problem appears to be in the chat handling flow. 
+
+  Based on the error logs and code provided, there are a few key issues to address:
+    The main error is localStorage is not defined occurring in the server-side code. This happens because localStorage is only available in browser environments, not on the server.
+    There's also a connection refused error when trying to connect to the Ollama server at port 11434.
+
+
+    This implementation ensures that:
+    The selected model is stored in both local storage and the database
+    The model selection is passed to all relevant API endpoints
+    The model is used consistently throughout the application
+    The model selection persists between sessions
+    The server-side components are aware of which model to use for each request
+    Remember to update your database schema to include a model column in your chat_history table if you haven't already done so.
+
+
+  Looking at the logs and code, I can see that while the frontend is correctly updating the model state, there seems to be an issue with how the model selection is being passed through the API calls.
 
 
 # add search in the code 

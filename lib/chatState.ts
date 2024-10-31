@@ -5,6 +5,7 @@ import { answerQuestion } from '@/actions/questionAnswering';
 import { v4 as uuidv4 } from 'uuid';
 import { useRouter } from 'next/navigation'; // Change this to use the new App Router
 import { encodeImageToBase64 } from '@/lib/fileUtils'; // Import the function
+import { DEFAULT_MODEL } from '@/lib/modelUtils';
 
 // Update the ChatStateType to include all properties and methods
 export type ChatStateType = {
@@ -42,10 +43,20 @@ export const useChatState = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dominationField, setDominationField] = useState<string>('Relax');
+  const [dominationField, setDominationField] = useState<string>('Normal Chat');
   const [savedCustomPrompt, setSavedCustomPrompt] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
-  const [model, setModel] = useState<string>('llama3.1'); // Add this line
+  const [model, setModel] = useState<string>(DEFAULT_MODEL);
+
+  useEffect(() => {
+    const savedModel = localStorage.getItem('selectedModel');
+    if (savedModel && ['gpt-4', 'gpt-3.5-turbo', 'llama2', 'claude-3-opus-20240229'].includes(savedModel)) {
+      setModel(savedModel);
+    } else {
+      localStorage.setItem('selectedModel', DEFAULT_MODEL);
+      setModel(DEFAULT_MODEL);
+    }
+  }, []);
 
   const router = useRouter();
 
@@ -151,7 +162,8 @@ export const useChatState = () => {
         dominationField,
         chatId,
         savedCustomPrompt,
-        imageBase64
+        imageBase64,
+        model
       );
 
       const assistantMessage: ChatMessage = {
@@ -170,7 +182,7 @@ export const useChatState = () => {
       setIsLoading(false);
       setStreamingMessage('');
     }
-  }, [currentChat, dominationField, savedCustomPrompt, addMessageToCurrentChat, createNewChat, router]);
+  }, [currentChat, dominationField, savedCustomPrompt, model, addMessageToCurrentChat, createNewChat, router]);
 
   const loadChatHistory = useCallback(async (chatId: string) => {
     setIsLoadingHistory(true);
@@ -217,6 +229,10 @@ export const useChatState = () => {
     setCustomPrompt(newPrompt);
     setSavedCustomPrompt(newPrompt);
   }, []);
+
+  useEffect(() => {
+    console.log('Model changed in state:', model);
+  }, [model]);
 
   return {
     chats,

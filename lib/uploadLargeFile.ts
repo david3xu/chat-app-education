@@ -1,8 +1,7 @@
 import GPT3Tokenizer from 'gpt3-tokenizer';
 import { supabase } from './supabase';
-import fs from 'fs';
-import path from 'path';
 import { convertPdfToMarkdown } from './pdfToMarkdown';
+import { fetchWithRetry } from '@/lib/utils/fetchWithRetry';
 
 const tokenizer = new GPT3Tokenizer({ type: 'gpt3' });
 
@@ -12,29 +11,6 @@ const MIN_CHUNK_LENGTH_TO_EMBED = 5; // Minimum length of chunk to embed
 const EMBEDDINGS_BATCH_SIZE = 128; // Number of embeddings to request at a time
 const MAX_NUM_CHUNKS = 4000; // Maximum number of chunks to generate from a text
 const INITIAL_TEXT_PARTITION_SIZE = 4000; // Maximum length for initial text partitioning
-
-const TEMPLATE_FOLDER = path.join(process.cwd(), 'docs');
-
-function saveChunksToTemplateFolder(chunks: string[], fileName: string) {
-  if (!fs.existsSync(TEMPLATE_FOLDER)) {
-    fs.mkdirSync(TEMPLATE_FOLDER);
-  }
-  // console.log('TEMPLATE_FOLDER', TEMPLATE_FOLDER);  
-
-  chunks.forEach((chunk, index) => {
-    const chunkFileName = `${fileName}-part${index + 1}.md`;
-    const chunkFilePath = path.join(TEMPLATE_FOLDER, chunkFileName);
-    fs.writeFileSync(chunkFilePath, chunk);
-    // console.log(`Saved chunk to ${chunkFilePath}`); // Add logging
-  });
-}
-
-function deleteTemplateFolder() {
-  if (fs.existsSync(TEMPLATE_FOLDER)) {
-    fs.rmSync(TEMPLATE_FOLDER, { recursive: true, force: true });
-    // console.log(`Deleted template folder ${TEMPLATE_FOLDER}`); // Add logging
-  }
-}
 
 export function getTextChunks(text: string): string[] {
   // console.log('Starting getTextChunks'); // Add logging
@@ -108,27 +84,6 @@ export function getTextChunks(text: string): string[] {
   return chunks;
 }
 
-async function fetchWithRetry(url: string, options: RequestInit, retries: number = 5, initialTimeout: number = 5000): Promise<Response> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      // console.log(`Attempt ${i + 1}: Fetching ${url}`);
-      const controller = new AbortController();
-      const timeout = initialTimeout * Math.pow(2, i); // Exponential backoff
-      const id = setTimeout(() => controller.abort(), timeout);
-      const response = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(id);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      return response;
-    } catch (error) {
-      // console.error(`Attempt ${i + 1} failed:`, error);
-      if (i === retries - 1) throw error;
-      // console.warn(`Fetch attempt ${i + 1} failed. Retrying in ${initialTimeout * Math.pow(2, i) / 1000} seconds...`);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retrying
-    }
-  }
-  throw new Error('All fetch attempts failed');
-}
-
 export async function getEmbeddings(contents: string[]): Promise<number[][]> {
   try {
     // console.log('Contents to embed:', contents);
@@ -149,6 +104,11 @@ export async function getEmbeddings(contents: string[]): Promise<number[][]> {
           body: JSON.stringify({ query: content }),
         });
 
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Embedding API error: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+
         const { embedding } = await response.json();
         return embedding;
       }));
@@ -162,68 +122,25 @@ export async function getEmbeddings(contents: string[]): Promise<number[][]> {
 
     return embeddings;
   } catch (error) {
-    // console.error('Error in getEmbeddings:', error);
+    console.error('Error in getEmbeddings:', error);
     throw error;
   }
 }
 
-export async function uploadLargeFileToSupabase(file: File, source: string, author: string, fileName: string, hash: string, dominationField: string, abortSignal: AbortSignal) {
-  if (typeof window === 'undefined') {
-    console.warn('File upload attempted on server side');
-    return { success: false, error: 'File upload is not supported on the server side' };
+export async function uploadLargeFile(file: File) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(buffer);
+    
+    // Rest of your file processing logic here
+    // Instead of fs.readFile, use the buffer directly
+    
+    return {
+      success: true,
+      data: uint8Array
+    };
+  } catch (error) {
+    console.error('Error in uploadLargeFile:', error);
+    throw error;
   }
-
-  let fileContent: string;
-
-  if (file.type === 'application/pdf') {
-    fileContent = await convertPdfToMarkdown(file);
-  } else {
-    fileContent = await file.text();
-  }
-
-  // console.log('Starting to process file content'); // Add logging
-  const chunks = getTextChunks(fileContent);
-  // console.log(`Generated ${chunks.length} chunks`); // Add logging
-  saveChunksToTemplateFolder(chunks, fileName);
-
-  for (let i = 0; i < chunks.length; i += EMBEDDINGS_BATCH_SIZE) {
-    if (abortSignal.aborted) {
-      throw new Error('Upload cancelled');
-    }
-
-    const batchChunks = chunks.slice(i, i + EMBEDDINGS_BATCH_SIZE);
-    // console.log(`Processing batch ${i / EMBEDDINGS_BATCH_SIZE + 1}`); // Add logging
-
-    const embeddings = await getEmbeddings(batchChunks);
-    // console.log(`Generated embeddings for batch ${i / EMBEDDINGS_BATCH_SIZE + 1}`); // Add logging
-
-    for (let j = 0; j < batchChunks.length; j++) {
-      if (!embeddings[j]) {
-        // console.error(`No embedding for chunk ${j}`);
-        continue;
-      }
-
-      const { error } = await supabase
-        .from('documents')
-        .insert({
-          source,
-          source_id: `${hash}-${i + j}`,
-          content: batchChunks[j],
-          document_id: `${fileName}-part${i + j + 1}`,
-          author,
-          url: fileName,
-          embedding: embeddings[j],
-          domination_field: dominationField, // Ensure this matches the column name in Supabase
-        });
-
-      if (error) {
-        // console.error(`Error inserting chunk ${j}:`, error); // Add logging
-        throw error;
-      }
-    }
-  }
-
-  // Delete the template folder after successful upload
-  deleteTemplateFolder();
-  // console.log('Upload process completed successfully'); // Add logging
 }

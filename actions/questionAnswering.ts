@@ -1,11 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import { storeChatMessage } from './chatHistory';
-import { getRelaxPrompt, getDocumentPrompt, getEmailPrompt } from '@/lib/prompts';
-import { ChatCompletionContentPart, ChatCompletionContentPartText, ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
-import { encode } from 'node:querystring';
+import { 
+  getNormalChatPrompt, 
+  getDocumentPrompt, 
+  getEmailPrompt, 
+  getDocWithoutCodePrompt,
+  getSimpleDocumentPrompt
+} from '@/lib/prompts';
+import { ChatCompletionContentPartText, ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
+import { DEFAULT_MODEL, getFullModelName } from '@/lib/modelUtils';
 
-const OLLAMA_SERVER_URL = process.env.NEXT_PUBLIC_OLLAMA_SERVER_URL || 'http://localhost:11434'
+const ollamaServerUrl = process.env.NEXT_PUBLIC_OLLAMA_SERVER_URL || '' 
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || ''
@@ -17,7 +23,7 @@ if (!supabaseUrl || !supabaseKey) {
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
 const openai = new OpenAI({
-  baseURL: `${OLLAMA_SERVER_URL}/v1`,
+  baseURL: `${ollamaServerUrl}/v1`,
   apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
   dangerouslyAllowBrowser: true
 })
@@ -25,7 +31,9 @@ const openai = new OpenAI({
 // Add this line to specify the model
 // const MODEL_NAME = "deepseek-coder-v2:latest"
 // const MODEL_NAME = "llava-llama3"
-const MODEL_NAME = "llama3.1"
+// const MODEL_NAME = "llama3.1"
+// const MODEL_NAME = "cira-dpo-gguf:latest"
+
 
 async function getEmbedding(query: string) {
   const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/ollama`, {
@@ -64,31 +72,48 @@ function structureResponse(content: string): string {
   return structuredResponse;
 }
 
-export async function answerQuestion(
-  messages: { role: string; content: string | { type: string; text?: string; image_url?: { url: string } }[] }[], 
-  onToken: (token: string) => void, 
-  dominationField: string = 'Relax',
-  chatId: string, 
-  customPrompt?: string,
-  imageFile?: string // Already a base64 string
-) {
-  if (!dominationField) dominationField = 'Relax'; // Ensure default is 'Relax'
-  try {
-    // console.log('answerQuestion called with image:', !!imageFile); // Debug log
+const MAX_RETRIES = 3;
+const INITIAL_BACKOFF = 1000; // 1 second
 
+async function retryWithBackoff(fn: () => Promise<any>, retries = 0) {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries >= MAX_RETRIES) {
+      throw error;
+    }
+    await new Promise(resolve => setTimeout(resolve, INITIAL_BACKOFF * Math.pow(2, retries)));
+    return retryWithBackoff(fn, retries + 1);
+  }
+}
+
+export async function answerQuestion(
+  messages: any[],
+  onToken: (token: string) => void,
+  dominationField: string = 'Normal Chat',
+  chatId: string,
+  customPrompt?: string,
+  imageFile?: string,
+  model?: string
+) {
+  console.log('Starting answerQuestion with model:', model);
+  const fullModelName = getFullModelName(model || DEFAULT_MODEL);
+  console.log('Using full model name:', fullModelName);
+
+  console.log('answerQuestion - Default model:', DEFAULT_MODEL);
+
+  if (!dominationField) dominationField = 'Normal Chat'; // Ensure default is 'Normal Chat'
+  try {
     let lastMessage = messages[messages.length - 1].content;
     const sanitizedQuery = typeof lastMessage === 'string' 
       ? lastMessage.trim().replace(/[\r\n]+/g, ' ').substring(0, 500)
-      : lastMessage.find(item => item.type === 'text')?.text || '';
-
-    // console.log('Sanitized query:', sanitizedQuery); // Debug log
+      : lastMessage.find((item: any) => item.type === 'text')?.text || '';
 
     let previousConvo = messages.slice(0, -1).map(msg => 
       `${msg.role.toUpperCase()}: ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}`
     ).join('\n');
 
     let prompt;
-    // add a default base prompt
     const defaultBasePrompt = `Basic requirements:
 1. Focus on answering the question.
 2. Depending on the chat question, consider including chat history as input content.
@@ -97,64 +122,72 @@ export async function answerQuestion(
 `;
 
     const basePrompt = defaultBasePrompt + (customPrompt ? `${customPrompt}\n\n` : '');
-    if (dominationField === 'Relax') {
-      prompt = basePrompt + getRelaxPrompt(previousConvo, sanitizedQuery);
+    if (dominationField === 'Normal Chat') {
+      prompt = basePrompt + getNormalChatPrompt(previousConvo, sanitizedQuery);
     } else if (dominationField === 'Email') {
       prompt = getEmailPrompt(previousConvo, sanitizedQuery, customPrompt);
     } else {
-      const embedding = await getEmbedding(sanitizedQuery);
-
-      const { data: pageSections, error } = await supabase.rpc('hybrid_search', {
-        query_text: sanitizedQuery,
-        query_embedding: embedding,
-        match_count: 50,
-        full_text_weight: 1.0,
-        semantic_weight: 1.0,
-        in_domination_field: dominationField
-      });
-
-      if (error) {
-        // console.error('Error in hybrid_search:', error);
-        throw error;
-      }
-
-      if (!Array.isArray(pageSections) || pageSections.length === 0) {
-        onToken("No relevant information found.");
-        return;
-      }
-
       let contextText = '';
-      for (const section of pageSections) {
-        contextText += `${section.content.trim()}\n---\n`;
+      try {
+        const embedding = await getEmbedding(sanitizedQuery);
+        const { data: pageSections, error } = await supabase.rpc('hybrid_search', {
+          query_text: sanitizedQuery,
+          query_embedding: embedding,
+          match_count: 50,
+          full_text_weight: 1.0,
+          semantic_weight: 1.0,
+          in_domination_field: dominationField
+        });
+
+        if (error) {
+          console.error('Error in hybrid_search:', error);
+          if (error.message === 'tsquery stack too small') {
+            throw new Error('The search query is too complex. Falling back to default prompt.');
+          }
+          throw error;
+        }
+
+        if (Array.isArray(pageSections) && pageSections.length > 0) {
+          for (const section of pageSections) {
+            contextText += `${section.content.trim()}\n---\n`;
+          }
+        }
+      } catch (searchError) {
+        console.warn('Search failed, falling back to default prompt:', searchError);
+        // Fall back to a default prompt if the search fails
+        contextText = 'Unable to retrieve specific context. Answering based on general knowledge.';
       }
 
-      prompt = basePrompt + getDocumentPrompt(contextText, previousConvo, sanitizedQuery);
+      // prompt = basePrompt + getDocumentPrompt(contextText, previousConvo, sanitizedQuery);
+      // prompt = basePrompt + getDocWithoutCodePrompt(contextText, previousConvo, sanitizedQuery);
+      prompt = basePrompt + getSimpleDocumentPrompt(contextText, previousConvo, sanitizedQuery);
     }
 
-    // console.log('Generated prompt:', prompt); // Debug log
-
-    // Validate messages before sending to OpenAI API
     const validMessages = messages.filter(msg => msg.content && (typeof msg.content === 'string' ? msg.content.trim() !== '' : true));
+    let systemMessage = '';
+    if (dominationField === 'Rubin Observation') {
+      systemMessage = 'You are a helpful assistant specializing in Rubin Observatory and astronomical observations.';
+    } else if (dominationField === 'Normal Chat') {
+      systemMessage = 'You are a friendly and helpful general-purpose assistant.';
+    } else if (dominationField === 'Email') {
+      systemMessage = 'You are a helpful assistant specializing in email composition and communication.';
+    } else {
+      systemMessage = 'You are a helpful assistant specializing in marking programming language design assignments.';
+    }
+
     let apiMessages: ChatCompletionMessageParam[] = [
-      { role: 'system', content: 'You are a helpful assistant.' },
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: prompt },
       ...validMessages.map(msg => ({
-        role: msg.role as 'system' | 'user' | 'assistant',
-        content: typeof msg.content === 'string' ? msg.content : msg.content.toString(),
-      })),
-      { 
-        role: 'user', 
-        content: [{ type: 'text', text: prompt }] as ChatCompletionContentPart[]
-      }
+        role: msg.role as 'user' | 'assistant' | 'system',
+        content: msg.content
+      }) as ChatCompletionMessageParam)
     ];
 
-    // console.log(`imageFile: ${imageFile}`);
-
     if (imageFile) {
-      // console.log('Image data received, type:', typeof imageFile, 'length:', imageFile.byteLength);
-      
       const imageContent = {
         type: 'image_url',
-        image_url: { url: imageFile } // Use the base64 string directly
+        image_url: { url: imageFile }
       };
       
       if (apiMessages.length > 0) {
@@ -168,22 +201,20 @@ export async function answerQuestion(
           ];
         }
       }
-      
-      // console.log('Last message after adding image:', JSON.stringify(apiMessages[apiMessages.length - 1]));
     }
 
-    // console.log('Prepared API messages:', JSON.stringify(apiMessages)); // Debug log  
+    
 
-    // console.log('Using model:', MODEL_NAME);
-    const completion = await openai.chat.completions.create({
-      model: MODEL_NAME,
-      messages: apiMessages,
-      stream: true,
-      max_tokens: 4096,
-      temperature: 0.0,
+    const completion = await retryWithBackoff(() => {
+      console.log('Making API call with model:', fullModelName);
+      return openai.chat.completions.create({
+        model: fullModelName,
+        messages: apiMessages,
+        stream: true,
+        max_tokens: 2048,
+        temperature: 0.0,
+      })
     });
-
-    // console.log('Completion created, starting stream'); // Debug log
 
     let fullResponse = '';
     for await (const chunk of completion) {
@@ -198,16 +229,15 @@ export async function answerQuestion(
       }
     }
 
-    // Structure the full response before saving
     const structuredResponse = structureResponse(fullResponse);
-
-    // Save the structured response
     await storeChatMessage(chatId, 'assistant', structuredResponse, dominationField);
 
-    return structuredResponse; // Return the response
+    return structuredResponse;
   } catch (error) {
-    // console.error('Error in answerQuestion:', error);
-    if (error instanceof Error && error.message.includes('Connection error')) {
+    console.error('Error in answerQuestion:', error);
+    if (error instanceof OpenAI.APIError) {
+      throw new Error(`OpenAI API error: ${error.message}`);
+    } else if (error instanceof Error && error.message.includes('Connection error')) {
       throw new Error('Unable to connect to the AI server. Please check your connection and try again.');
     } else {
       throw new Error('An error occurred while processing your question. Please try again later.');

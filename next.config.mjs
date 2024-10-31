@@ -3,13 +3,9 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: '/api/ollama',
-        destination: 'http://localhost:11434/api/generate',
-      },
-      {
-        source: '/api/answer',
-        destination: 'http://localhost:11434/api/generate',
-      },
+        source: '/api/ollama/:path*',
+        destination: 'http://localhost:11434/api/:path*',
+      }
     ];
   },
   webpack: (config, { isServer }) => {

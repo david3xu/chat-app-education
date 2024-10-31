@@ -1,9 +1,25 @@
-import { createHash } from 'crypto';
+import { createHash as cryptoCreateHash } from 'crypto';
 import { supabase } from './supabase';
 import { getTextChunks, getEmbeddings } from './uploadLargeFile';
 import { convertPdfToMarkdown } from './pdfToMarkdown';
 
 const MAX_FILE_SIZE = 100 * 1024; // 100KB
+
+function createHash(content: string): string {
+  if (typeof window === 'undefined') {
+    // Server-side (Node.js)
+    return cryptoCreateHash('md5').update(content).digest('hex');
+  } else {
+    // Client-side (Browser)
+    let hash = 0;
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return hash.toString(16);
+  }
+}
 
 export async function uploadMarkdownToSupabase(
   file: File,
@@ -33,14 +49,13 @@ export async function uploadMarkdownToSupabase(
       onProgress(20);
     }
 
-    const hash = createHash('md5').update(fileContent).digest('hex');
+    const hash = createHash(fileContent);
     onProgress(30);
 
     console.log(`uploadMarkdownToSupabase: Uploading ${file.name} with size ${fileSize} and hash ${hash}`);
 
     if (fileSize > MAX_FILE_SIZE) {
-      console.log('uploadMarkdownToSupabase: File size exceeds max limit, using API route'); // Debug log
-      console.log('Sending to API route:', { fileContent, source, author, domination_field: dominationField, fileName: file.name });
+      console.log('uploadMarkdownToSupabase: File size exceeds max limit, using API route');
       const response = await fetch('/api/uploadMarkdown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -48,17 +63,20 @@ export async function uploadMarkdownToSupabase(
           fileContent,
           source,
           author,
-          domination_field: dominationField, // Change this line
+          domination_field: dominationField,
           fileName: file.name,
         }),
       });
 
-      const result = await response.json();
+      // Add error handling for non-OK responses
       if (!response.ok) {
-        console.error('uploadMarkdownToSupabase: API route error', result.error); // Debug log
-        throw new Error(result.error || 'Unknown error');
+        const errorText = await response.text();
+        throw new Error(`API route error: ${response.status} ${response.statusText} - ${errorText}`);
       }
+
+      const result = await response.json();
       onProgress(100);
+      return result;
     } else {
       console.log('uploadMarkdownToSupabase: File size within limit, uploading directly to Supabase');
 

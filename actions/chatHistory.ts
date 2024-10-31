@@ -98,7 +98,8 @@ export async function handleSendMessage(
   customPrompt: string | undefined,
   chatId: string,
   currentMessages: ChatMessage[],
-  historyLoaded: boolean
+  historyLoaded: boolean,
+  model: string
 ) {
   if (!dominationField) return;
   
@@ -138,7 +139,8 @@ export async function handleSendMessage(
       dominationField,
       chatId,
       customPrompt,
-      imageBase64
+      imageBase64,
+      model
     );
 
     const assistantMessage: ChatMessage = {

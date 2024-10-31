@@ -40,25 +40,37 @@ export default function QuestionAnswering() {
     e.preventDefault();
     if (!dominationField) return;
     setLoading(true);
+    setAnswer(''); // Clear previous answer
     let fullResponse = '';
-    await answerQuestion(
-      chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
-      (token) => {
-        fullResponse += token;
-        setAnswer(fullResponse);
-      },
-      dominationField,
-      'default-chat-id',
-      customPrompt,
-      imageFile ? imageFile : undefined // Ensure imageFile is used consistently
-    );
-    setLoading(false);
-    setChatHistory(prev => [
-      ...prev, 
-      { id: uuidv4(), role: 'user', content: query, dominationField },
-      { id: uuidv4(), role: 'assistant', content: fullResponse, dominationField }
-    ]);
-    setImageFile(null); // Clear the image file after sending
+    try {
+      await answerQuestion(
+        chatHistory.map(msg => ({ role: msg.role, content: msg.content })),
+        (token) => {
+          fullResponse += token;
+          setAnswer(fullResponse);
+        },
+        dominationField,
+        'default-chat-id',
+        customPrompt,
+        imageFile ? imageFile as string : undefined
+      );
+      setChatHistory(prev => [
+        ...prev, 
+        { id: uuidv4(), role: 'user', content: query, dominationField },
+        { id: uuidv4(), role: 'assistant', content: fullResponse, dominationField }
+      ]);
+    } catch (error) {
+      console.error('Error in handleSubmit:', error);
+      if (error instanceof Error) {
+        setAnswer(`Error: ${error.message}`);
+      } else {
+        setAnswer('An error occurred while processing your question. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+      setImageFile(null); // Clear the image file after sending
+      setQuery(''); // Clear the input field after sending
+    }
   }
 
   const handleFileChange = async (file: File | null) => {
@@ -87,7 +99,7 @@ export default function QuestionAnswering() {
           onChange={(e) => setDominationField(e.target.value)}
         >
           <option value="">Select a field</option>
-          <option value="Relax">Relax</option>
+          <option value="Normal Chat">Normal Chat</option>
           <option value="Email">Email</option>
           {/* Add other options as needed */}
         </select>

@@ -7,4 +7,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Create a single instance of the Supabase client
+const supabaseInstance = createClient(supabaseUrl, supabaseAnonKey)
+
+// Export a function that returns the same instance
+export const getSupabase = () => supabaseInstance
+
+// For backwards compatibility, also export the instance directly
+export const supabase = supabaseInstance

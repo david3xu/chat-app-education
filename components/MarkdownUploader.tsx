@@ -1,9 +1,13 @@
 import React, { useState, useRef, ChangeEvent } from 'react';
-import { uploadMarkdownToSupabase, uploadFolderToSupabase } from '../lib/uploadMarkdown';
+import { uploadMarkdownToSupabase } from '../lib/uploadMarkdown';
 import { Button } from '@/components/ui/button';
 import { FiMenu } from 'react-icons/fi'; // Import the icon
 import { dominationFieldsData } from '../lib/data/domFields';
 import { isPdfFile } from '../lib/utils';
+import { uploadLargeFileToSupabase } from '../lib/uploadLargeFile';
+import { createHash as cryptoCreateHash } from 'crypto';
+import { supabase } from '../lib/supabase';
+import { getTextChunks, getEmbeddings } from '../lib/uploadLargeFile';
 
 // Add this interface at the top of your file
 interface CustomInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -47,9 +51,19 @@ export function MarkdownUploader() {
   const handleFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const selectedFiles = Array.from(e.target.files);
+      console.log(`Selected ${selectedFiles.length} files from folder`);
+      
       const validFiles = selectedFiles.filter(file => file.type === 'text/markdown' || isPdfFile(file));
+      console.log(`${validFiles.length} valid files (Markdown or PDF) found`);
+      
       setFiles(validFiles);
       setReminder('You have selected a folder. Only Markdown and PDF files will be processed. Please review the files and click "Upload" to proceed.');
+      
+      if (validFiles.length < selectedFiles.length) {
+        console.warn(`${selectedFiles.length - validFiles.length} files were ignored due to invalid type`);
+      }
+    } else {
+      console.warn('No files selected from folder');
     }
   };
 
@@ -79,28 +93,45 @@ export function MarkdownUploader() {
 
         if (file.type === 'application/pdf') {
           setUploadStatus(`Converting PDF to Markdown: ${file.name}`);
-          // Add a delay to ensure the status message is displayed
           await new Promise(resolve => setTimeout(resolve, 100));
         }
 
-        const result = await uploadMarkdownToSupabase(
-          file,
-          defaultSource,
-          defaultAuthor,
-          dominationField,
-          abortControllerRef.current.signal,
-          (progress) => {
-            setUploadProgress(progress);
-            setUploadStatus(`Uploading ${file.name}: ${progress.toFixed(2)}%`);
-          }
-        );
+        const fileContent = await file.text();
+        const hash = createHash(fileContent);
 
-        if (result.success) {
-          setUploadStatus(`Successfully uploaded: ${file.name}`);
+        let result;
+        if (file.size > 100 * 1024) { // 100KB
+          result = await uploadLargeFile(
+            file,
+            defaultSource,
+            defaultAuthor,
+            dominationField,
+            hash,
+            abortControllerRef.current.signal,
+            (progress) => {
+              setUploadProgress(progress);
+              setUploadStatus(`Uploading ${file.name}: ${progress.toFixed(2)}%`);
+            }
+          );
         } else {
+          result = await uploadMarkdownToSupabase(
+            file,
+            defaultSource,
+            defaultAuthor,
+            dominationField,
+            abortControllerRef.current.signal,
+            (progress) => {
+              setUploadProgress(progress);
+              setUploadStatus(`Uploading ${file.name}: ${progress.toFixed(2)}%`);
+            }
+          );
+        }
+
+        if (!result.success) {
           throw new Error(result.error || 'Unknown error');
         }
 
+        setUploadStatus(`Successfully uploaded: ${file.name}`);
         setUploadProgress((i + 1) / files.length * 100);
       }
 
@@ -118,6 +149,59 @@ export function MarkdownUploader() {
     }
   };
 
+  // Add this new function to handle large file uploads
+  const uploadLargeFile = async (
+    file: File,
+    source: string,
+    author: string,
+    dominationField: string,
+    hash: string,
+    abortSignal: AbortSignal,
+    onProgress: (progress: number) => void
+  ) => {
+    const fileContent = await file.text();
+    const chunks = getTextChunks(fileContent);
+    onProgress(10);
+
+    for (let i = 0; i < chunks.length; i++) {
+      if (abortSignal.aborted) {
+        throw new Error('Upload cancelled');
+      }
+
+      const embedding = await getEmbeddings([chunks[i]]);
+      
+      if (!embedding[0]) {
+        console.error(`No embedding for chunk ${i}`);
+        continue;
+      }
+
+      // Sanitize the chunk content
+      const sanitizedContent = chunks[i].replace(/\u0000/g, '');
+
+      const { error } = await supabase
+        .from('documents')
+        .insert({
+          source,
+          source_id: `${hash}-${i}`,
+          content: sanitizedContent, // Use sanitized content
+          document_id: `${file.name}-part${i + 1}`,
+          author,
+          domination_field: dominationField,
+          url: file.name,
+          embedding: embedding[0],
+        });
+
+      if (error) {
+        console.error('Supabase insert error:', error);
+        throw error;
+      }
+
+      onProgress(10 + (90 * (i + 1) / chunks.length));
+    }
+
+    return { success: true };
+  };
+
   const resetForm = () => {
     setFiles([]);
     setAuthor('');
@@ -127,6 +211,23 @@ export function MarkdownUploader() {
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (folderInputRef.current) folderInputRef.current.value = '';
   };
+
+  // Helper function to create hash
+  function createHash(content: string): string {
+    if (typeof window === 'undefined') {
+      // Server-side (Node.js)
+      return cryptoCreateHash('md5').update(content).digest('hex');
+    } else {
+      // Client-side (Browser)
+      let hash = 0;
+      for (let i = 0; i < content.length; i++) {
+        const char = content.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32-bit integer
+      }
+      return hash.toString(16);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -148,6 +249,7 @@ export function MarkdownUploader() {
         type="file"
         accept=".md,.pdf,text/markdown,application/pdf"
         onChange={handleFileChange}
+        multiple
         className="hidden"
       />
       <CustomFileInput

@@ -2,7 +2,8 @@
 // import pdfjsWorker from "pdfjs-dist/build/pdf.worker.entry";
 
 
-import { pdfjs } from 'react-pdf';
+// import { pdfjs } from 'pdfjs-dist';
+import * as pdfjs from 'pdfjs-dist';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 

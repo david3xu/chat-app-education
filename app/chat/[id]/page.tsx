@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useChat } from '@/components/ChatContext';
 import SharedLayout from '@/components/SharedLayout';
-import ChatArea from '@/components/ChatArea';
+import { ChatArea } from '@/components/chatArea/ChatArea';
 import MessageInput from '@/components/MessageInput';
 import { Chat } from '@/lib/chat';
 
@@ -29,7 +29,7 @@ const ChatPage = () => {
               messages: [],
               historyLoaded: true,
               name: 'New Chat',
-              dominationField: 'Relax',
+              dominationField: 'Normal Chat',
             };
             setCurrentChat(newChat);
           }
@@ -41,7 +41,7 @@ const ChatPage = () => {
             messages: [],
             historyLoaded: true,
             name: 'New Chat',
-            dominationField: 'Relax',
+            dominationField: 'Normal Chat',
           };
           setCurrentChat(newChat);
         } finally {

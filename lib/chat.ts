@@ -1,11 +1,12 @@
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   dominationField: string;
   image?: string; // Base64 encoded image
   code?: string;
   chat_topic?: string;
+  model?: string;
 }
 
 export interface Chat {
@@ -17,6 +18,7 @@ export interface Chat {
   customPrompt?: string;
   codeBlocks?: string[];
   chat_topic?: string; // Add this line
+  model?: string;
 }
 
 export interface ChatContextType {

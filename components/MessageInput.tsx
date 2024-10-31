@@ -25,6 +25,7 @@ const MessageInput: React.FC = () => {
     createNewChat,
     setStreamingMessage,
     setDominationField,
+    model,
   } = useChat();
   const router = useRouter();
 
@@ -37,7 +38,7 @@ const MessageInput: React.FC = () => {
 
     const fieldToUse = dominationField;
     if (!dominationField) {
-      setDominationField('Relax');
+      setDominationField('Normal Chat');
     }
 
     let chatToUse = currentChat;
@@ -81,7 +82,8 @@ const MessageInput: React.FC = () => {
             dominationField: fieldToUse,
             customPrompt,
             chatId: chatToUse.id,
-            imageFile: imageBase64
+            imageFile: imageBase64,
+            model: model,
           }),
         });
 
