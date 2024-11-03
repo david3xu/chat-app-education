@@ -7,7 +7,7 @@ import TextareaAutosize from "react-textarea-autosize";
 import { ChatMessage } from '@/lib/chat';
 import { Send, Plus } from 'react-feather';
 import Image from 'next/image';
-import { encodeImageToBase64 } from '@/lib/fileUtils'; // Make sure this utility function exists
+import { encodeImageToBase64 } from '@/lib/utils/file'; // Updated import path
 import { useRouter } from 'next/navigation';
 
 const MessageInput: React.FC = () => {

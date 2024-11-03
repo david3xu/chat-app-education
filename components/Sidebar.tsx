@@ -24,16 +24,31 @@ const Sidebar: React.FC = () => {
     setCustomPrompt
   } = useChat();
 
-  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(() => {
+    // Only access window during client-side execution
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 768;
+    }
+    // Default to true for server-side rendering
+    return true;
+  });
+
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setSidebarVisible(window.innerWidth >= 768);
+    setMounted(true);
     const handleResize = () => {
       setSidebarVisible(window.innerWidth >= 768);
     };
+    // Initial check
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  if (!mounted) {
+    return null;
+  }
 
   const handleCreateNewChat = async (e: React.MouseEvent) => {
     e.preventDefault();

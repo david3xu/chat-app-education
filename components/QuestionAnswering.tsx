@@ -3,7 +3,7 @@ import { answerQuestion } from '../actions/questionAnswering'
 import { fetchChatHistory } from '../actions/chatHistory'
 import { v4 as uuidv4 } from 'uuid'
 import { ChatMessage } from '../lib/chat'
-import { encodeImageToBase64 } from '@/lib/fileUtils'
+import { encodeImageToBase64 } from '@/lib/utils/file'
 
 export default function QuestionAnswering() {
   const [query, setQuery] = useState('')

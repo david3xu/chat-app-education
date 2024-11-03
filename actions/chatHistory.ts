@@ -2,15 +2,7 @@ import { encodeImage, supabase } from './questionAnswering';
 import { ChatMessage, MessageData } from '@/lib/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { answerQuestion } from './questionAnswering';     
-
-async function encodeImageToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = error => reject(error);
-  });
-}
+import { encodeImageToBase64 } from '@/lib/utils/file';
 
 export async function fetchChatHistory(chatId: string): Promise<ChatMessage[]> {
   const { data, error } = await supabase

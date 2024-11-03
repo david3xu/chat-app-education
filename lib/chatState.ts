@@ -4,7 +4,7 @@ import { fetchChatHistory, storeChatMessage } from '@/actions/chatHistory';
 import { answerQuestion } from '@/actions/questionAnswering';
 import { v4 as uuidv4 } from 'uuid';
 import { useRouter } from 'next/navigation'; // Change this to use the new App Router
-import { encodeImageToBase64 } from '@/lib/fileUtils'; // Import the function
+import { encodeImageToBase64 } from '@/lib/utils/file'; // Import the function
 import { DEFAULT_MODEL } from '@/lib/modelUtils';
 
 // Update the ChatStateType to include all properties and methods

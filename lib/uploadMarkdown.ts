@@ -1,25 +1,9 @@
-import { createHash as cryptoCreateHash } from 'crypto';
+import { createHash } from '@/lib/utils/crypto';
 import { supabase } from './supabase';
 import { getTextChunks, getEmbeddings } from './uploadLargeFile';
 import { convertPdfToMarkdown } from './pdfToMarkdown';
 
 const MAX_FILE_SIZE = 100 * 1024; // 100KB
-
-function createHash(content: string): string {
-  if (typeof window === 'undefined') {
-    // Server-side (Node.js)
-    return cryptoCreateHash('md5').update(content).digest('hex');
-  } else {
-    // Client-side (Browser)
-    let hash = 0;
-    for (let i = 0; i < content.length; i++) {
-      const char = content.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return hash.toString(16);
-  }
-}
 
 export async function uploadMarkdownToSupabase(
   file: File,
@@ -49,7 +33,7 @@ export async function uploadMarkdownToSupabase(
       onProgress(20);
     }
 
-    const hash = createHash(fileContent);
+    const hash = await createHash(fileContent);
     onProgress(30);
 
     console.log(`uploadMarkdownToSupabase: Uploading ${file.name} with size ${fileSize} and hash ${hash}`);

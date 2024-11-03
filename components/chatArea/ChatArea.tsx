@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useParams } from 'next/navigation';
+import { Upload, X } from 'lucide-react';
 import { MarkdownUploader } from "@/components/MarkdownUploader";
 import { ChatMessages } from './ChatMessages';
 import { useChat } from './useChat';
 import { ChatAreaProps } from './types';
-import { ModelSelector, DEFAULT_MODEL } from '@/components/chatArea/ModelSelector';
+import { ModelSelector } from '@/components/chatArea/ModelSelector';
 
 export const ChatArea: React.FC<ChatAreaProps> = () => {
   const router = useRouter();
@@ -26,8 +27,21 @@ export const ChatArea: React.FC<ChatAreaProps> = () => {
         <div className="flex items-center gap-4">
           <ModelSelector />
         </div>
-        <h1 className="text-white text-4xl font-bold cursor-pointer" onClick={() => setShowUploader(!showUploader)}>
-          {showUploader ? 'Hide Uploader' : 'Show Uploader'}
+        <h1 
+          className="text-white text-xl font-semibold cursor-pointer flex items-center gap-2 hover:text-gray-300 transition-colors duration-200" 
+          onClick={() => setShowUploader(!showUploader)}
+        >
+          {showUploader ? (
+            <>
+              <X className="w-5 h-5" />
+              Hide Uploader
+            </>
+          ) : (
+            <>
+              <Upload className="w-5 h-5" />
+              Show Uploader
+            </>
+          )}
         </h1>
       </div>
       

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { uploadLargeFileToSupabase } from '@/lib/uploadLargeFile';
-import { createHash } from 'crypto';
+import { createHash } from '@/lib/utils/crypto';
 
 export async function POST(req: Request) {
   // console.log('API Route: Received request'); // Debug log
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
-  const hash = createHash('md5').update(fileContent).digest('hex');
+  const hash = await createHash(fileContent);
   // console.log(`API Route: Generated hash ${hash}`); // Debug log
 
   try {

@@ -17,11 +17,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setModel: setFallbackModel
   };
 
-  const chatState = useChatState(modelState);
+  const chatState = useChatState();
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Add mounting check while preserving all features
+  if (!isClient) {
+    return null; // Return null on server-side to prevent hydration mismatch
+  }
 
   return (
     <ChatContext.Provider value={{

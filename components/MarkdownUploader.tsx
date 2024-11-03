@@ -3,11 +3,11 @@ import { uploadMarkdownToSupabase } from '../lib/uploadMarkdown';
 import { Button } from '@/components/ui/button';
 import { FiMenu } from 'react-icons/fi'; // Import the icon
 import { dominationFieldsData } from '../lib/data/domFields';
-import { isPdfFile } from '../lib/utils';
+import { isPdfFile } from '@/lib/utils/file';
 import { uploadLargeFileToSupabase } from '../lib/uploadLargeFile';
-import { createHash as cryptoCreateHash } from 'crypto';
-import { supabase } from '../lib/supabase';
 import { getTextChunks, getEmbeddings } from '../lib/uploadLargeFile';
+import { supabase } from '@/lib/supabase';
+import { createHash } from '@/lib/utils/crypto';
 
 // Add this interface at the top of your file
 interface CustomInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -97,7 +97,7 @@ export function MarkdownUploader() {
         }
 
         const fileContent = await file.text();
-        const hash = createHash(fileContent);
+        const hash = await createHash(fileContent);
 
         let result;
         if (file.size > 100 * 1024) { // 100KB
@@ -211,23 +211,6 @@ export function MarkdownUploader() {
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (folderInputRef.current) folderInputRef.current.value = '';
   };
-
-  // Helper function to create hash
-  function createHash(content: string): string {
-    if (typeof window === 'undefined') {
-      // Server-side (Node.js)
-      return cryptoCreateHash('md5').update(content).digest('hex');
-    } else {
-      // Client-side (Browser)
-      let hash = 0;
-      for (let i = 0; i < content.length; i++) {
-        const char = content.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32-bit integer
-      }
-      return hash.toString(16);
-    }
-  }
 
   return (
     <div className="space-y-4">

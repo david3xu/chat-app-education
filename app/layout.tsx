@@ -25,6 +25,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  if (typeof window !== 'undefined') {
+    window.Buffer = window.Buffer || Buffer;
+  }
+
   return (
     <html lang="en">
       <body
